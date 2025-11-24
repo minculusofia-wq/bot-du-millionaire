@@ -103,6 +103,8 @@ HTML_TEMPLATE = """
         <div class="nav">
             <button class="nav-btn active" onclick="showSection('dashboard')">Tableau de Bord</button>
             <button class="nav-btn" onclick="showSection('traders')">Gestion Traders</button>
+            <button class="nav-btn" onclick="showSection('backtesting')">🎮 Backtesting</button>
+            <button class="nav-btn" onclick="showSection('benchmark')">🏆 Benchmark</button>
             <button class="nav-btn" onclick="showSection('settings')">Paramètres & Sécurité</button>
             <button class="nav-btn" onclick="showSection('history')">Historique Complet</button>
         </div>
@@ -168,6 +170,64 @@ HTML_TEMPLATE = """
                 <p>Actifs: <span id="active_count" style="color: #FFD600; font-size: 20px;">0/3</span></p>
                 <p>Capital Alloué: <span id="capital_allocated" style="color: #00E676;">$0</span> / <span id="total_capital_display" style="color: #FFD600;">$1000</span></p>
                 <div id="traders_list"></div>
+            </div>
+        </div>
+
+        <!-- BACKTESTING -->
+        <div id="backtesting" class="section">
+            <div class="card">
+                <h2>🎮 Backtesting - Tester les paramètres TP/SL</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                    <div>
+                        <label style="color: #aaa;">Sélectionner Trader:</label>
+                        <select id="backtest_trader" style="width: 100%; padding: 10px; margin: 10px 0; background: #2a2a2a; color: #fff; border: 1px solid #555; border-radius: 5px;">
+                            <option value="">-- Choisir un trader --</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; align-items: flex-end; gap: 10px;">
+                        <button class="btn" onclick="runBacktestMultiple()" style="flex: 1;">▶️ Lancer Backtests (All Params)</button>
+                        <button class="btn" onclick="loadBacktestTraders()" style="flex: 0.5;">🔄 Rafraîchir</button>
+                    </div>
+                </div>
+                <div id="backtest_results" style="margin-top: 20px;">
+                    <p style="color: #999; text-align: center;">Résultats apparaîtront ici...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- BENCHMARK -->
+        <div id="benchmark" class="section">
+            <div class="card">
+                <h2>🏆 Benchmark - Bot vs Traders</h2>
+                <button class="btn" onclick="updateBenchmark()" style="margin-bottom: 20px;">📊 Rafraîchir Benchmark</button>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                    <div class="card" style="background: #0a3a0a;">
+                        <h3 style="color: #00E676;">📈 BOT - Performance</h3>
+                        <div style="font-size: 28px; color: #00E676; margin: 10px 0;" id="bot_benchmark_pnl">+0%</div>
+                        <p style="color: #aaa; margin: 5px 0;">Win Rate: <span id="bot_benchmark_wr" style="color: #00E676;">0%</span></p>
+                        <p style="color: #aaa; margin: 5px 0;">Classement: <span id="bot_benchmark_rank" style="color: #FFD600; font-weight: bold;">-</span></p>
+                    </div>
+                    <div class="card">
+                        <h3 style="color: #64B5F6;">🎯 Meilleur Trader</h3>
+                        <div style="font-size: 20px; color: #00E676; margin: 10px 0;" id="best_trader_name">-</div>
+                        <p style="color: #aaa; margin: 5px 0;">PnL: <span id="best_trader_pnl" style="color: #00E676;">+0%</span></p>
+                        <p style="color: #aaa; margin: 5px 0;">Win Rate: <span id="best_trader_wr" style="color: #00E676;">0%</span></p>
+                    </div>
+                </div>
+
+                <h3 style="color: #64B5F6; margin-top: 20px;">📊 Classement Complet</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rang</th>
+                            <th>Nom</th>
+                            <th>PnL</th>
+                            <th>Win Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="benchmark_ranking"></tbody>
+                </table>
             </div>
         </div>
 
@@ -417,6 +477,104 @@ HTML_TEMPLATE = """
         
         setInterval(updateUI, 5000);  // Appel toutes les 5 secondes pour éviter le rate limiting
         updateUI();
+        
+        // BACKTESTING FUNCTIONS
+        function loadBacktestTraders() {
+            fetch('/api/status').then(r => r.json()).then(data => {
+                let html = '<option value="">-- Choisir un trader --</option>';
+                data.traders.forEach(t => {
+                    html += `<option value="${t.address}">${t.emoji} ${t.name}</option>`;
+                });
+                document.getElementById('backtest_trader').innerHTML = html;
+            });
+        }
+        
+        function runBacktestMultiple() {
+            const trader_address = document.getElementById('backtest_trader').value;
+            if (!trader_address) {
+                alert('Veuillez sélectionner un trader');
+                return;
+            }
+            
+            document.getElementById('backtest_results').innerHTML = '⏳ Backtesting en cours...';
+            
+            fetch('/api/backtest_multiple', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({trader_address: trader_address})
+            }).then(r => r.json()).then(data => {
+                if (!data.results || data.results.length === 0) {
+                    document.getElementById('backtest_results').innerHTML = '<p style="color: #FF6B6B;">❌ Pas assez de trades pour le backtesting</p>';
+                    return;
+                }
+                
+                let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">';
+                data.results.forEach(r => {
+                    const bg = r.win_rate >= 50 ? '#0a4a0a' : '#4a0a0a';
+                    html += `<div class="card" style="background: ${bg};">
+                        <h3 style="color: #64B5F6;">TP: ${r.tp_percent}% / SL: ${r.sl_percent}%</h3>
+                        <p style="color: #aaa;">Trades: <span style="color: #00E676;">${r.total_trades}</span></p>
+                        <p style="color: #aaa;">Win Rate: <span style="color: #FFD600;">${r.win_rate}%</span></p>
+                        <p style="color: #aaa;">PnL: <span style="color: ${r.total_pnl >= 0 ? '#00E676' : '#D50000'};">$${r.total_pnl}</span></p>
+                        <p style="color: #aaa;">PnL%: <span style="color: ${r.total_pnl_percent >= 0 ? '#00E676' : '#D50000'};">${r.total_pnl_percent}%</span></p>
+                    </div>`;
+                });
+                html += '</div>';
+                
+                if (data.best) {
+                    html += `<div class="card" style="margin-top: 20px; border: 2px solid #FFD600;">
+                        <h3 style="color: #FFD600;">🎯 MEILLEUR RÉSULTAT</h3>
+                        <p>TP: <span style="color: #00E676;">${data.best.tp_percent}%</span> / SL: <span style="color: #00E676;">${data.best.sl_percent}%</span></p>
+                        <p>Win Rate: <span style="color: #FFD600;">${data.best.win_rate}%</span></p>
+                        <p>PnL: <span style="color: #00E676;">$${data.best.total_pnl}</span> (${data.best.total_pnl_percent}%)</p>
+                    </div>`;
+                }
+                
+                document.getElementById('backtest_results').innerHTML = html;
+            }).catch(e => {
+                document.getElementById('backtest_results').innerHTML = '<p style="color: #FF6B6B;">❌ Erreur: ' + e + '</p>';
+            });
+        }
+        
+        // BENCHMARK FUNCTIONS
+        function updateBenchmark() {
+            document.getElementById('benchmark_ranking').innerHTML = '<tr><td colspan="4" style="text-align: center;">⏳ Chargement...</td></tr>';
+            
+            fetch('/api/benchmark').then(r => r.json()).then(benchmark => {
+                // Update bot stats
+                const bot_pnl_color = benchmark.bot_pnl >= 0 ? '#00E676' : '#D50000';
+                document.getElementById('bot_benchmark_pnl').textContent = (benchmark.bot_pnl >= 0 ? '+' : '') + benchmark.bot_pnl.toFixed(2) + '%';
+                document.getElementById('bot_benchmark_pnl').style.color = bot_pnl_color;
+                document.getElementById('bot_benchmark_wr').textContent = benchmark.bot_win_rate.toFixed(1) + '%';
+                document.getElementById('bot_benchmark_rank').textContent = '#' + benchmark.bot_rank;
+                
+                // Update best trader
+                if (benchmark.best_trader) {
+                    document.getElementById('best_trader_name').textContent = benchmark.best_trader.trader_name;
+                    document.getElementById('best_trader_pnl').textContent = (benchmark.best_trader.trader_pnl >= 0 ? '+' : '') + benchmark.best_trader.trader_pnl.toFixed(2) + '%';
+                    document.getElementById('best_trader_wr').textContent = benchmark.best_trader.trader_win_rate.toFixed(1) + '%';
+                }
+            }).then(() => {
+                fetch('/api/benchmark_ranking').then(r => r.json()).then(data => {
+                    let html = '';
+                    data.ranking.forEach(r => {
+                        const bg = r.rank === 1 ? '#0a3a0a' : (r.rank <= 3 ? '#1a2a3a' : 'transparent');
+                        const color = r.rank === 1 ? '#FFD600' : '#64B5F6';
+                        const medal = r.rank === 1 ? '🥇' : (r.rank === 2 ? '🥈' : (r.rank === 3 ? '🥉' : ''));
+                        html += `<tr style="background: ${bg};">
+                            <td style="color: ${color}; font-weight: bold;">${medal} #${r.rank}</td>
+                            <td>${r.name}</td>
+                            <td style="color: ${r.pnl >= 0 ? '#00E676' : '#D50000'};">${(r.pnl >= 0 ? '+' : '')}${r.pnl.toFixed(2)}%</td>
+                            <td style="color: #FFD600;">${r.win_rate.toFixed(1)}%</td>
+                        </tr>`;
+                    });
+                    document.getElementById('benchmark_ranking').innerHTML = html;
+                });
+            });
+        }
+        
+        // Charger les traders au chargement
+        loadBacktestTraders();
     </script>
 </body>
 </html>
