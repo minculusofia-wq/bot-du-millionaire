@@ -223,7 +223,7 @@ class RealPortfolioTracker:
         
         if past_value and past_value > 0:
             pnl = current_value - past_value
-            pnl_percent = (pnl / past_value * 100)
+            pnl_percent = (pnl / past_value * 100) if past_value != 0 else 0
             return {'pnl': pnl, 'pnl_percent': pnl_percent}
         
         return {'pnl': 0, 'pnl_percent': 0}
