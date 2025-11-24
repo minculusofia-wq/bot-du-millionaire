@@ -15,6 +15,7 @@ from copy_trading_simulator import copy_trading_simulator
 from db_manager import db_manager
 from backtesting_engine import backtesting_engine
 from benchmark_system import benchmark_system
+from auto_sell_manager import auto_sell_manager
 
 app = Flask(__name__)
 backend = BotBackend()
@@ -283,8 +284,24 @@ HTML_TEMPLATE = """
                     </div>
                     <button class="btn" onclick="saveTakeProfit()">💾 Sauvegarder TP & SL</button>
                     <button class="btn" onclick="switchMode()">Basculer Mode TEST/REEL</button>
+                    
+                    <div class="divider"></div>
+                    <h3 class="section-title">💰 Vente Automatique</h3>
+                    <label style="color: #aaa; display: flex; align-items: center; margin: 10px 0;">
+                        <input type="checkbox" id="auto_sell_enabled" onchange="toggleAutoSell()" style="width: 20px; height: 20px; margin-right: 10px;">
+                        Activer vente automatique quand trader vend
+                    </label>
+                    <label style="color: #aaa; display: flex; align-items: center; margin: 10px 0;">
+                        <input type="checkbox" id="respect_tp_sl" onchange="updateAutoSellSettings()" checked style="width: 20px; height: 20px; margin-right: 10px;">
+                        Respecter TP/SL avant de vendre
+                    </label>
                 </div>
                 <div class="card">
+                    <h2>📊 Positions Ouvertes</h2>
+                    <div id="open_positions_list" style="margin-bottom: 20px;"></div>
+                    <button class="btn" onclick="refreshPositions()" style="width: 100%; margin-bottom: 10px;">🔄 Rafraîchir Positions</button>
+                    
+                    <div class="divider"></div>
                     <h2>🔐 Configuration & Sécurité</h2>
                     <p>Wallet Connecté: <span id="wallet_addr" style="color: #00E676;">Aucun</span></p>
                     <div class="param-group">
@@ -575,6 +592,89 @@ HTML_TEMPLATE = """
         
         // Charger les traders au chargement
         loadBacktestTraders();
+        
+        // AUTO SELL / VENTE AUTOMATIQUE FUNCTIONS
+        function toggleAutoSell() {
+            const enabled = document.getElementById('auto_sell_enabled').checked;
+            fetch('/api/toggle_auto_sell', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({enabled: enabled})
+            }).then(r => r.json()).then(data => {
+                console.log('Auto sell:', data.enabled ? 'Activé' : 'Désactivé');
+                updateAutoSellSettings();
+            });
+        }
+        
+        function updateAutoSellSettings() {
+            const settings = {
+                enabled: document.getElementById('auto_sell_enabled').checked,
+                respect_tp_sl: document.getElementById('respect_tp_sl').checked
+            };
+            fetch('/api/auto_sell_settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(settings)
+            });
+        }
+        
+        function refreshPositions() {
+            fetch('/api/open_positions').then(r => r.json()).then(data => {
+                let html = '';
+                
+                if (data.open_positions_count === 0) {
+                    html = '<p style="color: #999; text-align: center;">Aucune position ouverte</p>';
+                } else {
+                    html += `<div style="margin-bottom: 15px; padding: 10px; background: #0a3a0a; border-radius: 8px;">
+                        <p style="color: #00E676; margin: 5px 0;"><strong>📊 ${data.open_positions_count} position(s) ouverte(s)</strong></p>
+                        <p style="color: #aaa; margin: 5px 0;">PnL Ouvert: <span style="color: ${data.total_open_pnl >= 0 ? '#00E676' : '#D50000'};">$${data.total_open_pnl.toFixed(2)}</span></p>
+                    </div>`;
+                    
+                    data.open_positions.forEach(pos => {
+                        const pnl_color = pos.pnl >= 0 ? '#00E676' : '#D50000';
+                        html += `<div style="margin: 10px 0; padding: 10px; background: #2a2a2a; border-radius: 8px; border-left: 4px solid ${pnl_color};">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <p style="color: #64B5F6; margin: 5px 0;"><strong>${pos.trader_name}</strong></p>
+                                    <p style="color: #aaa; margin: 5px 0;">Entry: $${pos.entry_price.toFixed(2)} | Amount: ${pos.amount}</p>
+                                    <p style="color: #aaa; margin: 5px 0;">TP: ${pos.tp_percent}% | SL: ${pos.sl_percent}%</p>
+                                    <p style="color: ${pnl_color}; margin: 5px 0;"><strong>PnL: $${pos.pnl.toFixed(2)} (${pos.pnl_percent.toFixed(2)}%)</strong></p>
+                                </div>
+                                <button class="btn" onclick="manualSell('${pos.position_id}', ${pos.current_price})" style="padding: 10px 15px;">💰 Vendre</button>
+                            </div>
+                        </div>`;
+                    });
+                    
+                    if (data.closed_positions_count > 0) {
+                        html += `<div style="margin-top: 20px; padding: 10px; background: #3a2a2a; border-radius: 8px;">
+                            <p style="color: #FFD600; margin: 5px 0;"><strong>✅ ${data.closed_positions_count} position(s) fermée(s)</strong></p>
+                            <p style="color: #aaa; margin: 5px 0;">PnL Réalisé: <span style="color: ${data.total_closed_pnl >= 0 ? '#00E676' : '#D50000'};">$${data.total_closed_pnl.toFixed(2)}</span></p>
+                        </div>`;
+                    }
+                }
+                
+                document.getElementById('open_positions_list').innerHTML = html;
+            });
+        }
+        
+        function manualSell(position_id, current_price) {
+            if (confirm('Vendre cette position maintenant ?')) {
+                fetch(`/api/manual_sell/${position_id}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({current_price: current_price})
+                }).then(r => r.json()).then(data => {
+                    alert('Position fermée ! PnL: $' + (data.final_pnl || 0).toFixed(2));
+                    refreshPositions();
+                }).catch(e => {
+                    alert('Erreur: ' + e);
+                });
+            }
+        }
+        
+        // Rafraîchir les positions toutes les 5 secondes
+        setInterval(refreshPositions, 5000);
+        refreshPositions();
     </script>
 </body>
 </html>
@@ -971,6 +1071,42 @@ def api_benchmark_ranking():
 def api_benchmark_summary():
     """Résumé du benchmark"""
     return jsonify(benchmark_system.get_benchmark_summary())
+
+# ===== ROUTES AUTO SELL / VENTE AUTOMATIQUE =====
+
+@app.route('/api/open_positions', methods=['GET'])
+def api_open_positions():
+    """Récupère les positions ouvertes"""
+    summary = auto_sell_manager.get_position_summary()
+    return jsonify(summary)
+
+@app.route('/api/manual_sell/<position_id>', methods=['POST'])
+def api_manual_sell(position_id):
+    """Vente manuelle d'une position"""
+    data = request.get_json()
+    current_price = data.get('current_price', 0)
+    
+    result = auto_sell_manager.manual_sell(position_id, current_price)
+    return jsonify(result)
+
+@app.route('/api/auto_sell_settings', methods=['GET'])
+def api_get_auto_sell_settings():
+    """Récupère les paramètres de vente auto"""
+    return jsonify(auto_sell_manager.get_auto_sell_settings())
+
+@app.route('/api/auto_sell_settings', methods=['POST'])
+def api_update_auto_sell_settings():
+    """Met à jour les paramètres de vente auto"""
+    data = request.get_json()
+    result = auto_sell_manager.update_auto_sell_settings(data)
+    return jsonify(result)
+
+@app.route('/api/toggle_auto_sell', methods=['POST'])
+def api_toggle_auto_sell():
+    """Active/désactive la vente automatique"""
+    data = request.get_json()
+    auto_sell_manager.auto_sell_enabled = data.get('enabled', True)
+    return jsonify({'enabled': auto_sell_manager.auto_sell_enabled})
 
 if __name__ == '__main__':
     print("🚀 Lancement sur http://0.0.0.0:5000")
