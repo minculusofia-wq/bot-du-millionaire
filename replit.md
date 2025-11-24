@@ -8,6 +8,25 @@ Bot du Millionnaire is an automated Solana copy trading application that monitor
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Updates (Phase 6 + Code Audit)
+
+### ✅ Phase 6 Complete - Auto Sell + Backtesting + Benchmark
+- **Auto Sell Manager**: Automatic position management (TP/SL or mirror exact trader sales)
+- **Backtesting Engine**: Test 30+ TP/SL combinations to identify best parameters
+- **Benchmark System**: Compare bot performance vs selected traders with ranking
+
+### 🔧 Code Audit & Bug Fixes (November 24, 2025)
+**7 Division-by-Zero Protection Fixes:**
+1. `backtesting_engine.py` line 62: PnL % calculation protected
+2. `trade_safety.py` line 81: Entry price protection for PnL calculation
+3. `auto_sell_manager.py` line 113: Entry price protection in position tracking
+4. `auto_sell_manager.py` line 180: Auto sell final PnL calculation protected
+5. `auto_sell_manager.py` line 228: Manual sell final PnL calculation protected
+6. `bot_logic.py` line 170: Price change percent calculation protected
+7. `bot_logic.py` line 213: Trade PnL update calculation protected
+
+**Status**: All bugs fixed ✅ - Bot running error-free with 200 status codes
+
 ## System Architecture
 
 ### Frontend Architecture
