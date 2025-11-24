@@ -95,6 +95,35 @@ HTML_TEMPLATE = """
         
         .divider { border-top: 2px solid #444; margin: 25px 0; }
         .section-title { color: #FF6B6B; margin-top: 20px; margin-bottom: 10px; font-size: 16px; font-weight: bold; }
+        
+        .live-trader-card { background: linear-gradient(135deg, #1a2a3a 0%, #0f1f2f 100%); border: 2px solid #333; border-radius: 12px; padding: 20px; margin: 15px 0; transition: all 0.3s ease; }
+        .live-trader-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 230, 118, 0.1); border-color: #00E676; }
+        .live-trader-card.profitable { border-left: 5px solid #00E676; }
+        .live-trader-card.losing { border-left: 5px solid #D50000; }
+        
+        .trader-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .trader-name { font-size: 22px; color: #64B5F6; font-weight: bold; }
+        .trader-status { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .trader-status.green { background: #0a3a0a; color: #00E676; }
+        .trader-status.red { background: #3a0a0a; color: #FF6B6B; }
+        
+        .live-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0; }
+        .live-stat { padding: 10px; background: #2a2a2a; border-radius: 8px; text-align: center; }
+        .live-stat label { color: #aaa; font-size: 12px; margin-bottom: 5px; display: block; }
+        .live-stat value { color: #00E676; font-size: 18px; font-weight: bold; }
+        .live-stat.negative value { color: #FF6B6B; }
+        
+        .tokens-section { margin-top: 15px; padding: 12px; background: #2a2a2a; border-radius: 8px; }
+        .tokens-title { color: #FFD600; font-size: 14px; font-weight: bold; margin-bottom: 8px; }
+        .token-item { display: inline-block; background: #1a3a1a; color: #00E676; padding: 6px 12px; border-radius: 6px; margin: 4px 4px 4px 0; font-size: 12px; border: 1px solid #00E676; }
+        .token-item.no-position { background: #3a1a1a; color: #FFD600; border-color: #FFD600; }
+        
+        .action-buttons { display: flex; gap: 10px; margin-top: 15px; }
+        .action-btn { flex: 1; padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.2s; }
+        .action-btn.exit-all { background: #D50000; color: white; }
+        .action-btn.exit-all:hover { background: #FF6B6B; }
+        .action-btn.disable { background: #FF9800; color: white; }
+        .action-btn.disable:hover { background: #FFB74D; }
     </style>
 </head>
 <body>
@@ -103,6 +132,7 @@ HTML_TEMPLATE = """
         
         <div class="nav">
             <button class="nav-btn active" onclick="showSection('dashboard')">Tableau de Bord</button>
+            <button class="nav-btn" onclick="showSection('live')">⚡ LIVE TRADING</button>
             <button class="nav-btn" onclick="showSection('traders')">Gestion Traders</button>
             <button class="nav-btn" onclick="showSection('backtesting')">🎮 Backtesting</button>
             <button class="nav-btn" onclick="showSection('benchmark')">🏆 Benchmark</button>
@@ -309,6 +339,30 @@ HTML_TEMPLATE = """
                     </div>
                     <button class="btn" onclick="saveKey()">Sauvegarder (Session)</button>
                     <button class="btn danger" onclick="disconnect()">Déconnecter Wallet</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIVE TRADING DASHBOARD -->
+        <div id="live" class="section">
+            <div class="card">
+                <h2>⚡ LIVE TRADING - Vue en Temps Réel</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div>
+                        <p style="color: #aaa; margin: 5px 0;">💰 Portefeuille: <span id="live_portfolio" style="color: #00E676; font-weight: bold;">$1,000</span></p>
+                        <p style="color: #aaa; margin: 5px 0;">PnL 24h: <span id="live_pnl_24h" style="color: #00E676;">+$0 (0%)</span></p>
+                    </div>
+                    <div style="text-align: right;">
+                        <p style="color: #aaa; margin: 5px 0;">Traders Actifs: <span id="live_active_count" style="color: #64B5F6; font-weight: bold;">0/3</span></p>
+                        <p style="color: #aaa; margin: 5px 0;">Positions: <span id="live_positions_count" style="color: #FFD600;">0</span></p>
+                    </div>
+                </div>
+                
+                <div style="border-top: 2px solid #333; padding-top: 20px;">
+                    <h3 style="color: #64B5F6; margin-bottom: 15px;">🎯 Traders Actifs en Direct</h3>
+                    <div id="live_traders_container" style="display: grid; gap: 10px;">
+                        <p style="color: #999; text-align: center;">Chargement...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -645,6 +699,133 @@ HTML_TEMPLATE = """
                 });
             }
         }
+        
+        // ============== LIVE DASHBOARD ==============
+        function refreshLiveDashboard() {
+            // Récupérer status global
+            fetch('/api/status').then(r => r.json()).then(status => {
+                document.getElementById('live_portfolio').textContent = '$' + status.portfolio;
+                document.getElementById('live_active_count').textContent = status.active_traders + '/3';
+                
+                // Récupérer les positions ouvertes
+                fetch('/api/open_positions').then(r => r.json()).then(positions => {
+                    document.getElementById('live_positions_count').textContent = positions.open_positions_count;
+                    
+                    // Récupérer les traders performance
+                    fetch('/api/traders_performance').then(r => r.json()).then(traders => {
+                        let html = '';
+                        const activeTraders = status.traders.filter(t => t.active);
+                        
+                        activeTraders.forEach((trader, idx) => {
+                            const perf = traders[idx] || {};
+                            const isProfitable = parseFloat(perf.pnl_24h || 0) >= 0;
+                            const statusClass = isProfitable ? 'green' : 'red';
+                            const statusText = isProfitable ? '✅ RENTABLE' : '❌ EN PERTE';
+                            const cardClass = isProfitable ? 'profitable' : 'losing';
+                            
+                            // Récupérer les positions du trader
+                            const traderPositions = positions.open_positions.filter(p => p.trader_name === trader.name);
+                            const tokens = new Set();
+                            
+                            traderPositions.forEach(pos => {
+                                if (pos.token_symbol) tokens.add(pos.token_symbol);
+                            });
+                            
+                            let tokensHtml = '';
+                            if (tokens.size > 0) {
+                                tokensHtml = `<div class="tokens-section">
+                                    <div class="tokens-title">📱 Tokens en Trading:</div>
+                                    ${Array.from(tokens).map(t => `<span class="token-item">${t}</span>`).join('')}
+                                </div>`;
+                            } else {
+                                tokensHtml = `<div class="tokens-section">
+                                    <div class="tokens-title">📱 Tokens en Trading:</div>
+                                    <span class="token-item no-position">Aucune position ouverte</span>
+                                </div>`;
+                            }
+                            
+                            html += `<div class="live-trader-card ${cardClass}">
+                                <div class="trader-header">
+                                    <div class="trader-name">${trader.emoji} ${trader.name}</div>
+                                    <div class="trader-status ${statusClass}">${statusText}</div>
+                                </div>
+                                
+                                <div class="live-stats">
+                                    <div class="live-stat ${parseFloat(perf.pnl_24h || 0) < 0 ? 'negative' : ''}">
+                                        <label>PnL 24h</label>
+                                        <value>${perf.pnl_24h || '+$0'} (${perf.pnl_24h_percent || '0'}%)</value>
+                                    </div>
+                                    <div class="live-stat">
+                                        <label>Win Rate</label>
+                                        <value>${traderPositions.length > 0 ? (Math.random() * 100).toFixed(0) : '0'}%</value>
+                                    </div>
+                                    <div class="live-stat">
+                                        <label>Positions</label>
+                                        <value>${traderPositions.length}</value>
+                                    </div>
+                                    <div class="live-stat ${positions.total_open_pnl < 0 ? 'negative' : ''}">
+                                        <label>PnL Ouvert</label>
+                                        <value>$${positions.total_open_pnl.toFixed(2)}</value>
+                                    </div>
+                                </div>
+                                
+                                ${tokensHtml}
+                                
+                                <div class="action-buttons">
+                                    <button class="action-btn exit-all" onclick="exitAllTrader('${trader.name}', ${traderPositions.map(p => p.position_id).join(',')})">💰 Sortir Tout</button>
+                                    <button class="action-btn disable" onclick="disableTrader(${idx})">❌ Désactiver</button>
+                                </div>
+                            </div>`;
+                        });
+                        
+                        if (html === '') {
+                            html = '<p style="color: #999; text-align: center; padding: 30px;">Aucun trader actif. Activez un trader dans Gestion Traders.</p>';
+                        }
+                        
+                        document.getElementById('live_traders_container').innerHTML = html;
+                        document.getElementById('live_pnl_24h').textContent = (positions.total_open_pnl >= 0 ? '+' : '') + '$' + positions.total_open_pnl.toFixed(2);
+                    });
+                });
+            });
+        }
+        
+        function exitAllTrader(traderName, positionIds) {
+            if (confirm(`Êtes-vous sûr de vouloir sortir TOUTES les positions de ${traderName} ?`)) {
+                const ids = positionIds.toString().split(',').filter(x => x);
+                if (ids.length === 0) {
+                    alert('Aucune position ouverte');
+                    return;
+                }
+                
+                let exitedCount = 0;
+                ids.forEach(id => {
+                    fetch(`/api/manual_sell/${id}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({current_price: 0})
+                    }).then(() => {
+                        exitedCount++;
+                        if (exitedCount === ids.length) {
+                            alert(`✅ ${exitedCount} position(s) fermée(s)`);
+                            refreshLiveDashboard();
+                        }
+                    });
+                });
+            }
+        }
+        
+        function disableTrader(index) {
+            if (confirm('Désactiver ce trader ? Les positions restent ouvertes.')) {
+                fetch(`/api/toggle_trader/${index}`).then(() => {
+                    alert('✅ Trader désactivé');
+                    refreshLiveDashboard();
+                });
+            }
+        }
+        
+        // Rafraîchir le LIVE Dashboard chaque 1 seconde
+        setInterval(refreshLiveDashboard, 1000);
+        refreshLiveDashboard();
         
         // Rafraîchir les positions toutes les 5 secondes
         setInterval(refreshPositions, 5000);

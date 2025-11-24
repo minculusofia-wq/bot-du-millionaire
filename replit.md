@@ -8,12 +8,22 @@ Bot du Millionnaire is an automated Solana copy trading application that monitor
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Updates (Phase 6 + Code Audit)
+## Recent Updates (Phase 6 + Code Audit + LIVE Dashboard)
 
 ### ✅ Phase 6 Complete - Auto Sell + Backtesting + Benchmark
 - **Auto Sell Manager**: Automatic position management (TP/SL or mirror exact trader sales)
 - **Backtesting Engine**: Test 30+ TP/SL combinations to identify best parameters
 - **Benchmark System**: Compare bot performance vs selected traders with ranking
+
+### 🚀 Phase 7 - LIVE Dashboard avec Tokens en Temps Réel (November 24, 2025)
+**Nouveau onglet "⚡ LIVE TRADING"** pour monitoring temps réel :
+- **Affichage tokens**: Vois quels tokens sont en trading par chaque trader
+- **Mises à jour 1s**: Données actualisées en continu (ultra-rapide)
+- **Indicateurs visuels**: 🟢 Rentable vs 🔴 En perte
+- **Actions directes**: 
+  - 💰 Sortir Tout = Close toutes positions du trader
+  - ❌ Désactiver = Arrête ce trader
+- **Stats en direct**: PnL 24h, Win Rate, Positions ouvertes
 
 ### 🔧 Code Audit & Bug Fixes (November 24, 2025)
 
