@@ -8,6 +8,18 @@ Bot du Millionnaire is an automated Solana copy trading application that monitor
 
 Preferred communication style: Simple, everyday language (French).
 
+## GitHub Push Procedure (Standard for Future Updates)
+
+**Pour mettre à jour GitHub avec les nouvelles modifications :**
+
+```bash
+cd /home/runner/workspace && git push "https://${GITHUB_PERSONAL_ACCESS_TOKEN}@github.com/minculusofia-wq/bot-du-millionaire.git" main -f
+```
+
+Cette commande utilise automatiquement le token stocké dans les Secrets Replit et pousse les changements sur ton repository. **À utiliser pour chaque mise à jour majeure.**
+
+---
+
 ## Recent Updates (Phase 7 + Code Audit + LIVE Dashboard - November 24, 2025)
 
 ### ✅ Phase 7 Complete - LIVE Dashboard avec Tokens en Temps Réel
