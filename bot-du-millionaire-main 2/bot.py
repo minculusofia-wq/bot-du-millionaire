@@ -286,15 +286,14 @@ HTML_TEMPLATE = """
                     <button class="btn" onclick="switchMode()">Basculer Mode TEST/REEL</button>
                     
                     <div class="divider"></div>
-                    <h3 class="section-title">💰 Vente Automatique</h3>
-                    <label style="color: #aaa; display: flex; align-items: center; margin: 10px 0;">
-                        <input type="checkbox" id="auto_sell_enabled" onchange="toggleAutoSell()" style="width: 20px; height: 20px; margin-right: 10px;">
-                        Activer vente automatique quand trader vend
-                    </label>
-                    <label style="color: #aaa; display: flex; align-items: center; margin: 10px 0;">
-                        <input type="checkbox" id="respect_tp_sl" onchange="updateAutoSellSettings()" checked style="width: 20px; height: 20px; margin-right: 10px;">
-                        Respecter TP/SL avant de vendre
-                    </label>
+                    <h3 class="section-title">🤖 Achat & Vente AUTOMATIQUE</h3>
+                    <p style="color: #00E676; margin: 10px 0;"><strong>✅ AUTOMATIQUE = Le core du bot</strong></p>
+                    <ul style="color: #aaa; margin-left: 20px;">
+                        <li>Trader achète → Bot achète (capital alloué)</li>
+                        <li>Trader vend → Bot vend (automatiquement)</li>
+                        <li><strong style="color: #FFD600;">Si TP/SL configurés</strong> → respecte TP/SL</li>
+                        <li><strong style="color: #FFD600;">Si TP/SL = 0</strong> → vend exactement comme trader</li>
+                    </ul>
                 </div>
                 <div class="card">
                     <h2>📊 Positions Ouvertes</h2>
@@ -592,31 +591,6 @@ HTML_TEMPLATE = """
         
         // Charger les traders au chargement
         loadBacktestTraders();
-        
-        // AUTO SELL / VENTE AUTOMATIQUE FUNCTIONS
-        function toggleAutoSell() {
-            const enabled = document.getElementById('auto_sell_enabled').checked;
-            fetch('/api/toggle_auto_sell', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({enabled: enabled})
-            }).then(r => r.json()).then(data => {
-                console.log('Auto sell:', data.enabled ? 'Activé' : 'Désactivé');
-                updateAutoSellSettings();
-            });
-        }
-        
-        function updateAutoSellSettings() {
-            const settings = {
-                enabled: document.getElementById('auto_sell_enabled').checked,
-                respect_tp_sl: document.getElementById('respect_tp_sl').checked
-            };
-            fetch('/api/auto_sell_settings', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(settings)
-            });
-        }
         
         function refreshPositions() {
             fetch('/api/open_positions').then(r => r.json()).then(data => {
