@@ -1,0 +1,177 @@
+# Bot du Millionnaire - Solana Copy Trading
+
+## Overview
+
+Bot du Millionnaire is an automated Solana copy trading application that monitors and replicates trades from selected Solana traders. The bot provides real-time portfolio tracking, performance analytics, and configurable trading parameters through a modern web interface. It supports both TEST mode (simulation with virtual capital) and REAL mode (actual blockchain transactions).
+
+## User Preferences
+
+Preferred communication style: Simple, everyday language.
+
+## System Architecture
+
+### Frontend Architecture
+
+**Technology Stack:**
+- Pure HTML/CSS/JavaScript embedded in Flask template
+- Single-page application with tab-based navigation
+- Real-time updates via periodic AJAX polling (every 2 seconds)
+
+**Design Decisions:**
+- **No external frameworks**: Uses vanilla JavaScript to minimize dependencies and deployment complexity
+- **Inline styling**: All CSS embedded in HTML template for portability
+- **Tab-based UI**: Four main sections (Dashboard, Traders, Settings, History) for organized user experience
+- **Visual feedback**: Color-coded status indicators, emoji icons, and real-time PnL displays
+
+### Backend Architecture
+
+**Core Framework:**
+- Flask web server (single-threaded with background workers)
+- Python 3.9+ required for compatibility with Solana libraries
+
+**Key Components:**
+
+1. **BotBackend (bot_logic.py)**: Central configuration manager
+   - Loads/saves configuration from `config.json`
+   - Manages trader selection (max 3 active traders)
+   - Handles virtual balance in TEST mode
+   - Validates configuration integrity on startup
+
+2. **Portfolio Tracker (portfolio_tracker.py)**: Real-time wallet monitoring
+   - Tracks Solana wallet values via RPC calls
+   - Calculates PnL (Profit & Loss) for each trader
+   - Maintains historical data with automatic cleanup (8-day retention)
+   - Implements caching (2-minute TTL) to avoid RPC rate limiting
+   - Background thread updates every 2 minutes
+
+3. **Copy Trading Simulator (copy_trading_simulator.py)**: TEST mode transaction simulation
+   - Retrieves actual transactions from Helius API
+   - Simulates trades with virtual capital allocation
+   - Calculates realistic PnL based on simulated trades
+   - Persists simulated trades to JSON and SQLite
+
+4. **Trade Management System**:
+   - **Trade Validator (trade_validator.py)**: Pre-execution safety checks with configurable validation levels (STRICT/NORMAL/RELAXED)
+   - **Trade Safety (trade_safety.py)**: Take Profit (TP) and Stop Loss (SL) management with three configurable TP levels
+   - **DEX Handler (dex_handler.py)**: Multi-DEX support (Raydium, Orca, Jupiter, Magic Eden)
+
+5. **Monitoring & Logging**:
+   - **Audit Logger (audit_logger.py)**: Security-focused logging with multiple log levels (DEBUG through SECURITY)
+   - **Performance Monitor (monitoring.py)**: Real-time metrics collection, alerting system
+   - **Metrics Collector**: Tracks hourly/daily statistics
+
+6. **Blockchain Integration**:
+   - **Solana Integration (solana_integration.py)**: RPC connection wrapper and address validation
+   - **Helius Integration (helius_integration.py)**: Enhanced transaction parsing for swap detection
+   - **Solana Executor (solana_executor.py)**: Transaction signing and submission for REAL mode
+
+**Architecture Patterns:**
+
+- **Configuration as Code**: All settings persisted in `config.json` with runtime validation
+- **Dual Storage Strategy**: 
+  - JSON files for immediate access and human readability
+  - SQLite database for long-term persistence and complex queries
+- **Background Processing**: Separate daemon thread for portfolio tracking to avoid blocking web requests
+- **Rate Limiting Protection**: Built-in caching and delays between RPC calls
+- **Security-First Design**: Private keys stored only in memory, never persisted to disk
+
+**Trade Execution Flow (REAL mode):**
+1. Detect trader transaction via Helius API
+2. Validate trade parameters through TradeValidator
+3. Calculate position size based on trader capital allocation
+4. Apply slippage tolerance and TP/SL levels
+5. Execute swap via DEX Handler
+6. Monitor trade status through Portfolio Tracker
+7. Log execution to Audit Logger
+
+**Trade Simulation Flow (TEST mode):**
+1. Retrieve recent trades from trader wallets
+2. Simulate execution with virtual capital
+3. Calculate theoretical PnL based on market prices
+4. Update portfolio tracker with simulated results
+
+### Data Storage Solutions
+
+**Primary Storage:**
+- **config.json**: User configuration, trader settings, TP/SL parameters
+- **portfolio_tracker.json**: Current portfolio state, historical values, PnL calculations
+- **simulated_trades.json**: TEST mode trade history
+- **config_tracker.json**: Portfolio tracking configuration
+
+**Database (SQLite - bot_data.db):**
+- **wallet_history**: Time-series wallet balance data
+- **trader_portfolio**: Aggregated trader performance metrics
+- **portfolio_history**: Historical portfolio snapshots
+- **simulated_trades**: Long-term trade simulation records
+- **benchmark_data**: Performance comparison data
+- **audit_logs**: Security and operational logs
+
+**Rationale:**
+- JSON for hot data and user-facing configuration (fast reads, easy debugging)
+- SQLite for historical data and analytics (efficient queries, data integrity)
+- No external database server required (simplified deployment)
+
+### Authentication and Authorization
+
+**Current Implementation:**
+- Session-based private key storage (in-memory only)
+- Private key entered via web UI for REAL mode
+- Automatic key clearing on disconnect/logout
+
+**Security Measures:**
+- Private keys never written to config.json
+- No logging of sensitive key material
+- Audit trail excludes cryptographic secrets
+- Environment variable support for API keys (HELIUS_API_KEY, RPC_URL)
+
+**Design Decision:**
+The application prioritizes simplicity over multi-user authentication. It's designed for single-user operation with session-based security rather than complex user management systems.
+
+### External Dependencies
+
+**Blockchain Services:**
+
+1. **Solana RPC Endpoints**:
+   - Default: `https://api.mainnet-beta.solana.com` (public mainnet)
+   - Purpose: Wallet balance queries, transaction retrieval
+   - Configurable via `RPC_URL` environment variable
+
+2. **Helius API** (Optional but Recommended):
+   - Purpose: Enhanced transaction parsing, swap detection
+   - Rate limits: Free tier suitable for moderate use
+   - API key via `HELIUS_API_KEY` environment variable
+   - Fallback: Standard RPC if unavailable
+
+**Python Libraries:**
+
+Required (requirements.txt):
+- `flask==3.0.0`: Web framework
+- `requests==2.31.0`: HTTP client for RPC/API calls
+
+Optional (graceful degradation if missing):
+- `solders`: Solana key management (keypair operations)
+- `solana`: Official Solana Python SDK
+- `base58`: Address validation
+
+**External Price Feeds:**
+- CoinGecko API (implicit, through RPC metadata)
+- Used for SOL/USD conversion in portfolio valuation
+
+**DEX Integrations:**
+- Jupiter Aggregator (planned for swap routing)
+- Raydium, Orca (protocol-level integration)
+- Magic Eden (NFT/token swaps)
+
+**Design Decisions:**
+
+- **Minimal Dependencies**: Only Flask and requests are required; Solana libraries optional for TEST mode
+- **Graceful Fallbacks**: Application works in simulation mode without blockchain connectivity
+- **No Database Server**: SQLite eliminates external database dependency
+- **API Key Management**: Environment variables for secrets, never hardcoded
+- **Rate Limit Awareness**: Built-in delays and caching to respect public RPC limits
+
+**Deployment Considerations:**
+- Works on Replit with minimal configuration
+- macOS compatible (conditional imports handle platform differences)
+- Port 5000 default (configurable)
+- No compilation or build step required
