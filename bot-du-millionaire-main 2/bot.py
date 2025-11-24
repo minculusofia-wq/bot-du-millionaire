@@ -3,6 +3,27 @@ import webbrowser
 import json
 import time
 import threading
+import os
+from pathlib import Path
+
+# ⚡ Charger variables d'environnement depuis .env (si présent)
+def load_env_file():
+    """Charge les variables d'environnement depuis .env"""
+    env_file = Path('.env')
+    if env_file.exists():
+        try:
+            with open(env_file) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        os.environ[key.strip()] = value.strip().strip('"\'')
+            print("✅ Fichier .env chargé")
+        except Exception as e:
+            print(f"⚠️ Erreur lecture .env: {e}")
+
+load_env_file()
+
 from bot_logic import BotBackend
 from portfolio_tracker import portfolio_tracker
 from solana_executor import solana_executor
@@ -20,6 +41,17 @@ from helius_websocket import helius_websocket
 
 app = Flask(__name__)
 backend = BotBackend()
+
+# Afficher le statut de configuration au lancement
+import os
+helius_key = os.getenv('HELIUS_API_KEY')
+print(f"{'='*60}")
+print(f"✅ BOT PRÊT À DÉMARRER")
+print(f"Mode: {backend.data.get('mode', 'TEST')}")
+print(f"Helius API Key: {'✅ Configurée' if helius_key else '❌ NON configurée'}")
+print(f"Traders actifs: {sum(1 for t in backend.data.get('traders', []) if t.get('active'))}")
+print(f"Bot activé: {'✅ OUI' if backend.is_running else '❌ NON'}")
+print(f"{'='*60}")
 
 # Démarrer le thread de suivi des portefeuilles + simulation copy trading
 def start_tracking():

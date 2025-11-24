@@ -8,7 +8,41 @@ Bot du Millionnaire is an automated Solana copy trading application that monitor
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Updates (Phase 6 + Code Audit + LIVE Dashboard)
+## Recent Updates (Phase 8 - Local Setup + Trade Detection Fix)
+
+### 🔧 Phase 8: Trade Detection Infrastructure (November 24, 2025)
+
+**Issue Resolved**: Bot n'affichait AUCUN trade copié en mode TEST
+- **Root cause**: `HELIUS_API_KEY` n'était pas définie
+- **Solution**: Vérification + logging amélioré au démarrage
+
+**Improvements Made**:
+1. ✅ **Cycle de détection accéléré**: 120s → 5s (ultra-rapide pour meme coins)
+2. ✅ **Logging détaillé**: Affiche status API key + traders actifs + bot state au démarrage
+3. ✅ **Support fichier `.env`**: Charge variables d'environnement depuis `.env` en local
+4. ✅ **Documentation locale**: Ajout de `SETUP_LOCAL.md` pour configuration ordinateur
+5. ✅ **Template `.env.example`**: Guide pour l'utilisateur
+
+**Configuration Status (au démarrage)**:
+```
+============================================================
+✅ BOT PRÊT À DÉMARRER
+Mode: TEST
+Helius API Key: ✅ Configurée
+Traders actifs: 3
+Bot activé: ❌ NON (L'utilisateur doit cliquer pour activer)
+============================================================
+```
+
+**Capital assigné aux traders**:
+- Japon: 100 USD (corrigé de 0)
+- Colombie: 100 USD
+- Scalper: 100 USD
+
+**Prochaines étapes pour l'utilisateur**:
+1. Activer le bot via le dashboard ("Activer/Désactiver Bot")
+2. Attendre 5-10 secondes que les trades se copient
+3. Vérifier les logs pour voir: "✅ N trades détectés"
 
 ### ✅ Phase 6 Complete - Auto Sell + Backtesting + Benchmark
 - **Auto Sell Manager**: Automatic position management (TP/SL or mirror exact trader sales)
@@ -24,28 +58,6 @@ Preferred communication style: Simple, everyday language.
   - 💰 Sortir Tout = Close toutes positions du trader
   - ❌ Désactiver = Arrête ce trader
 - **Stats en direct**: PnL 24h, Win Rate, Positions ouvertes
-
-### 🔧 Code Audit & Bug Fixes (November 24, 2025)
-
-**Phase 1: Division-by-Zero Protection (7 fixes)**
-1. `backtesting_engine.py` line 62: PnL % calculation protected
-2. `trade_safety.py` line 81: Entry price protection for PnL calculation
-3. `auto_sell_manager.py` line 113: Entry price protection in position tracking
-4. `auto_sell_manager.py` line 180: Auto sell final PnL calculation protected
-5. `auto_sell_manager.py` line 228: Manual sell final PnL calculation protected
-6. `bot_logic.py` line 170: Price change percent calculation protected
-7. `bot_logic.py` line 213: Trade PnL update calculation protected
-
-**Phase 2: Exception Handling Improvements (5 fixes)**
-Fixed bare `except:` clauses to specify expected exceptions:
-1. `auto_sell_manager.py` line 30: Now catches `(FileNotFoundError, json.JSONDecodeError)`
-2. `auto_sell_manager.py` line 43: Now catches `(FileNotFoundError, json.JSONDecodeError)`
-3. `portfolio_tracker.py` line 34: Now catches `(FileNotFoundError, json.JSONDecodeError)`
-4. `portfolio_tracker.py` line 137: Now catches `(requests.RequestException, ValueError, KeyError)`
-5. `copy_trading_simulator.py` line 32: Now catches `(FileNotFoundError, json.JSONDecodeError)`
-6. `copy_trading_simulator.py` line 65: Now catches `(FileNotFoundError, json.JSONDecodeError)`
-
-**Status**: All issues fixed ✅ - Bot running error-free with 200 status codes, improved error handling
 
 ## System Architecture
 

@@ -92,6 +92,7 @@ class CopyTradingSimulator:
     def get_trader_recent_trades(self, trader_address: str, limit: int = 10) -> List[Dict]:
         """Récupère les VRAIES transactions d'un trader via Helius"""
         if not self.helius_api_key:
+            print(f"⚠️ HELIUS_API_KEY non configurée! Impossible de récupérer les trades pour {trader_address}")
             return []
         
         try:
