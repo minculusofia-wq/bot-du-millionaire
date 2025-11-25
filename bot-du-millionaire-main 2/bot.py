@@ -1570,47 +1570,139 @@ def api_backtest_multiple():
 
 @app.route('/api/benchmark', methods=['GET'])
 def api_benchmark():
-    """Benchmark bot vs traders"""
-    # Données de benchmark simplifiées (valeurs de démonstration)
-    return jsonify({
-        'bot_pnl': 14.01,
-        'bot_win_rate': 65.0,
-        'bot_rank': 1,
-        'best_trader': {
-            'trader_name': '🇯🇵 Japon',
-            'trader_pnl': 12.5,
-            'trader_win_rate': 62.0
-        }
-    })
+    """Benchmark bot vs traders - DONNÉES RÉELLES"""
+    try:
+        # Calcul du PnL du BOT (somme des trades actifs copies)
+        bot_pnl = backend.get_total_pnl()
+        bot_pnl_percent = backend.get_total_pnl_percent()
+        
+        # Récupérer tous les traders avec leurs performances
+        all_traders_perf = []
+        for trader in backend.data['traders']:
+            perf = portfolio_tracker.get_trader_performance(trader['address'])
+            all_traders_perf.append({
+                'name': trader['name'],
+                'emoji': trader['emoji'],
+                'pnl': perf['pnl_7d'],  # Utiliser le PnL 7j pour la comparaison
+                'win_rate': 0.0  # On peut enrichir ça plus tard
+            })
+        
+        # Trier les traders par PnL descendant
+        all_traders_perf.sort(key=lambda x: x['pnl'], reverse=True)
+        
+        # Le meilleur trader
+        best_trader = all_traders_perf[0] if all_traders_perf else None
+        
+        # Classer le bot vs les traders
+        bot_rank = 1
+        for i, t in enumerate(all_traders_perf, 1):
+            if bot_pnl < t['pnl']:
+                bot_rank = i + 1
+        
+        return jsonify({
+            'bot_pnl': bot_pnl_percent,
+            'bot_win_rate': 0.0,  # A implémenter si besoin
+            'bot_rank': bot_rank,
+            'best_trader': {
+                'trader_name': f"{best_trader['emoji']} {best_trader['name']}",
+                'trader_pnl': best_trader['pnl'],
+                'trader_win_rate': best_trader['win_rate']
+            } if best_trader else None
+        })
+    except Exception as e:
+        print(f"❌ Erreur benchmark: {e}")
+        # Fallback si erreur
+        return jsonify({
+            'bot_pnl': 0.0,
+            'bot_win_rate': 0.0,
+            'bot_rank': 10,
+            'best_trader': None
+        })
 
 @app.route('/api/benchmark_ranking', methods=['GET'])
 def api_benchmark_ranking():
-    """Classement bot vs traders"""
+    """Classement bot vs traders - DONNÉES RÉELLES"""
     try:
-        return jsonify({'ranking': benchmark_system.get_ranking()})
-    except:
+        # Calcul du PnL du BOT
+        bot_pnl = backend.get_total_pnl_percent()
+        
+        # Récupérer TOUS les traders avec leurs performances
+        ranking = []
+        
+        # Ajouter le BOT en premier pour reference
+        bot_entry = {
+            'rank': None,  # A calculer
+            'name': '🤖 Bot du Millionnaire',
+            'pnl': bot_pnl,
+            'win_rate': 0.0
+        }
+        
+        # Ajouter tous les traders
+        traders_entries = []
+        for trader in backend.data['traders']:
+            perf = portfolio_tracker.get_trader_performance(trader['address'])
+            traders_entries.append({
+                'name': f"{trader['emoji']} {trader['name']}",
+                'pnl': perf['pnl_7d'],  # PnL 7 jours
+                'win_rate': 0.0
+            })
+        
+        # Trier tous les participants (BOT + traders) par PnL descendant
+        all_entries = [bot_entry] + traders_entries
+        all_entries.sort(key=lambda x: x['pnl'], reverse=True)
+        
+        # Assigner les rangs
+        for rank, entry in enumerate(all_entries, 1):
+            entry['rank'] = rank
+        
+        return jsonify({'ranking': all_entries})
+    except Exception as e:
+        print(f"❌ Erreur benchmark_ranking: {e}")
         # Fallback ranking
         return jsonify({'ranking': [
-            {'rank': 1, 'name': '🤖 Bot du Millionnaire', 'pnl': 14.01, 'win_rate': 65.0},
-            {'rank': 2, 'name': '🇯🇵 Japon', 'pnl': 12.50, 'win_rate': 62.0},
-            {'rank': 3, 'name': '⭐ Starter', 'pnl': 8.75, 'win_rate': 58.0},
-            {'rank': 4, 'name': '🍁 Canada', 'pnl': 6.20, 'win_rate': 55.0}
+            {'rank': 1, 'name': '🤖 Bot du Millionnaire', 'pnl': 0.0, 'win_rate': 0.0},
+            {'rank': 2, 'name': '🇯🇵 Japon', 'pnl': 0.0, 'win_rate': 0.0},
+            {'rank': 3, 'name': '⭐ Starter', 'pnl': 0.0, 'win_rate': 0.0}
         ]})
 
 @app.route('/api/benchmark_summary', methods=['GET'])
 def api_benchmark_summary():
-    """Résumé du benchmark"""
+    """Résumé du benchmark - DONNÉES RÉELLES"""
     try:
-        return jsonify(benchmark_system.get_benchmark_summary())
-    except:
-        # Fallback: retourner un résumé simple
+        # Calcul PnL du BOT
+        bot_pnl = backend.get_total_pnl_percent()
+        
+        # Récupérer les traders et les trier
+        all_traders = []
+        for trader in backend.data['traders']:
+            perf = portfolio_tracker.get_trader_performance(trader['address'])
+            all_traders.append({
+                'name': trader['name'],
+                'emoji': trader['emoji'],
+                'pnl_7d': perf['pnl_7d']
+            })
+        
+        # Trouver le meilleur trader
+        best_trader = max(all_traders, key=lambda x: x['pnl_7d']) if all_traders else None
+        
         return jsonify({
-            'bot_performance': '+14.01%',
-            'bot_win_rate': '65.0%',
-            'bot_rank': 1,
-            'total_traders': 3,
-            'best_trader': 'Japon',
-            'best_trader_performance': '+12.50%'
+            'bot_performance': f"{'+' if bot_pnl >= 0 else ''}{bot_pnl:.2f}%",
+            'bot_win_rate': '0.0%',
+            'bot_rank': 1,  # A calculer plus tard
+            'total_traders': len(all_traders),
+            'best_trader': f"{best_trader['emoji']} {best_trader['name']}" if best_trader else '-',
+            'best_trader_performance': f"{'+' if best_trader['pnl_7d'] >= 0 else ''}{best_trader['pnl_7d']:.2f}%" if best_trader else '0%'
+        })
+    except Exception as e:
+        print(f"❌ Erreur benchmark_summary: {e}")
+        # Fallback
+        return jsonify({
+            'bot_performance': '+0.00%',
+            'bot_win_rate': '0.0%',
+            'bot_rank': 10,
+            'total_traders': 10,
+            'best_trader': '-',
+            'best_trader_performance': '+0.00%'
         })
 
 # ===== ROUTES AUTO SELL / VENTE AUTOMATIQUE =====
