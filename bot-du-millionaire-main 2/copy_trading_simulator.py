@@ -90,33 +90,78 @@ class CopyTradingSimulator:
             )
     
     def get_trader_recent_trades(self, trader_address: str, limit: int = 10) -> List[Dict]:
-        """Récupère les VRAIES transactions d'un trader via Helius"""
+        """Récupère les VRAIES transactions d'un trader via Helius (avec retry robuste)"""
         if not self.helius_api_key:
-            print(f"⚠️ HELIUS_API_KEY non configurée! Impossible de récupérer les trades pour {trader_address}")
+            print(f"⚠️ HELIUS_API_KEY non configurée pour {trader_address[:10]}...")
             return []
         
-        try:
-            # Appel Helius pour obtenir les transactions parsées
-            url = f"https://api-mainnet.helius-rpc.com/v0/addresses/{trader_address}/transactions/?api-key={self.helius_api_key}"
-            response = requests.get(url, timeout=10)
-            result = response.json()
+        # Retry logic robuste
+        retry_count = 0
+        max_retries = 2
+        
+        while retry_count < max_retries:
+            try:
+                # Appel Helius pour obtenir les transactions parsées
+                url = f"https://api-mainnet.helius-rpc.com/v0/addresses/{trader_address}/transactions/?api-key={self.helius_api_key}&limit={limit}"
+                response = requests.get(url, timeout=8)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    transactions = result if isinstance(result, list) else result.get('transactions', [])
+                elif response.status_code == 429:
+                    # Rate limited - attendre et retry
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        import time
+                        time.sleep(1)
+                        continue
+                    else:
+                        return []
+                elif response.status_code == 404:
+                    # Pas trouvé
+                    return []
+                else:
+                    # Autre erreur - retry
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        import time
+                        time.sleep(0.5)
+                        continue
+                    else:
+                        return []
             
-            # L'API retourne directement une LISTE de transactions
-            transactions = result if isinstance(result, list) else result.get('transactions', [])
-            if not transactions:
-                return []
+            except requests.Timeout:
+                retry_count += 1
+                if retry_count < max_retries:
+                    import time
+                    time.sleep(0.5)
+                    continue
+                else:
+                    print(f"⚠️ Helius timeout pour {trader_address[:10]}...")
+                    return []
             
-            # Parser les transactions pour identifier les swaps
-            trades = []
-            for tx_data in transactions[:limit]:
-                swap_data = self._parse_swap_transaction(tx_data)
-                if swap_data:
-                    trades.append(swap_data)
-            
-            return trades[:limit]
-        except Exception as e:
-            print(f"❌ Erreur récupération trades Helius: {e}")
+            except Exception as e:
+                print(f"⚠️ Helius error {trader_address[:10]}...: {str(e)[:50]}")
+                retry_count += 1
+                if retry_count < max_retries:
+                    import time
+                    time.sleep(0.5)
+                    continue
+                else:
+                    return []
+        
+        # Si on arrive ici sans avoir returné, retourner les transactions traitées
+        if 'transactions' not in locals():
             return []
+        
+        # Parser les transactions pour identifier les swaps
+        trades = []
+        for tx_data in transactions[:limit]:
+            swap_data = self._parse_swap_transaction(tx_data)
+            if swap_data:
+                trades.append(swap_data)
+        
+        return trades[:limit]
     
     def _parse_swap_transaction(self, tx_data: Dict) -> Optional[Dict]:
         """Parse une transaction Solana pour extraire les infos de swap"""

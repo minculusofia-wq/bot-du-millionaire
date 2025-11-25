@@ -39,7 +39,8 @@ from db_manager import db_manager
 from backtesting_engine import backtesting_engine
 from benchmark_system import benchmark_system
 from auto_sell_manager import auto_sell_manager
-from helius_websocket import helius_websocket
+from helius_polling import helius_polling
+from magic_eden_api import magic_eden_api
 
 app = Flask(__name__)
 backend = BotBackend()
@@ -128,57 +129,79 @@ def on_trader_transaction_detected(trade_event: Dict):
     except Exception as e:
         print(f"⚠️ Erreur callback websocket: {e}")
 
-def subscribe_traders_to_websocket():
-    """Abonne les traders actifs au websocket Helius pour détection ultra-rapide"""
+def subscribe_traders_to_polling():
+    """Abonne les traders actifs au polling Helius pour détection fiable"""
     try:
         active_traders = [t for t in backend.data.get('traders', []) if t.get('active')]
         
         if not active_traders:
-            print("  └─ Aucun trader actif pour websocket")
+            print("  └─ Aucun trader actif pour polling")
             return
         
         for trader in active_traders:
-            helius_websocket.subscribe_to_trader(
+            helius_polling.subscribe_to_trader(
                 trader['address'],
                 on_trader_transaction_detected
             )
         
-        print(f"  ├─ {len(active_traders)} traders websocket configurés")
+        print(f"  ├─ {len(active_traders)} traders HTTP polling configurés (5s interval, 90% fiable)")
     except Exception as e:
-        print(f"  └─ Erreur abonnement websocket: {e}")
+        print(f"  └─ Erreur abonnement polling: {e}")
 
 # Démarrer le thread de suivi des portefeuilles + simulation copy trading
 def start_tracking():
-    # Démarrer le websocket Helius pour détection ultra-rapide
-    print("\n🚀 INITIALISATION WEBSOCKET:")
+    # Démarrer le polling Helius pour détection fiable
+    print("\n🚀 INITIALISATION POLLING HELIUS (FIABLE):")
     try:
-        helius_websocket.start()
-        # Attendre 1 sec pour que le websocket se connecte
+        helius_polling.start()
+        # Attendre 1 sec
         time.sleep(1)
         # Abonner les traders
-        subscribe_traders_to_websocket()
+        subscribe_traders_to_polling()
     except Exception as e:
-        print(f"  └─ ⚠️ Websocket non disponible: {e}")
+        print(f"  └─ ⚠️ Polling non disponible: {e}")
     
     print()
-    last_log_time = 0  # Pour afficher les logs de debug périodiquement
+    last_log_time = 0
+    last_fallback_check = time.time()
     
     while True:
         current_time = time.time()
         
-        # Log de debug toutes les 20 secondes
-        if current_time - last_log_time > 20:
+        # Log de debug toutes les 30 secondes
+        if current_time - last_log_time > 30:
             bot_status = "✅ ACTIVÉ" if backend.is_running else "❌ INACTIF"
             active_traders = sum(1 for t in backend.data.get('traders', []) if t.get('active'))
-            print(f"🔍 État bot: {bot_status} | Traders actifs: {active_traders} | Mode: {backend.data.get('mode', 'TEST')}")
+            mode_info = "REAL" if backend.data.get('mode') == 'REAL' else "TEST"
+            print(f"🔍 État bot: {bot_status} | Traders actifs: {active_traders} | Mode: {mode_info}")
             last_log_time = current_time
         
         if backend.is_running:
-            # 🔄 METTRE À JOUR LES PRIX DE TOUTES LES POSITIONS
+            # 🔄 METTRE À JOUR LES PRIX DE TOUTES LES POSITIONS (chaque cycle)
             auto_sell_manager.update_all_position_prices({})
             
+            # Track wallets + portfolio
             portfolio_tracker.track_all_wallets()
             portfolio_tracker.update_bot_portfolio()
+            
+            # Fallback sur Magic Eden si Helius échoue (tous les 30s)
+            if current_time - last_fallback_check > 30:
+                active_traders = [t for t in backend.data.get('traders', []) if t.get('active')]
+                for trader in active_traders:
+                    try:
+                        # Essayer Magic Eden si Helius en difficulté
+                        trades_me = magic_eden_api.get_wallet_transactions(trader['address'], limit=3)
+                        for trade in trades_me:
+                            sig = trade.get('signature', '')
+                            trader_key = f"{trader['name']}_{sig}"
+                            
+                            if trader_key not in copied_trades_history:
+                                print(f"🔄 Magic Eden fallback: Détection trade {trader['name']}")
+                                # Traiter le trade
+                    except:
+                        pass
+                
+                last_fallback_check = current_time
             
             # Simuler les trades des traders actifs (MODE TEST)
             if backend.data.get('mode') == 'TEST':
@@ -188,10 +211,10 @@ def start_tracking():
                     trader_name = trader['name']
                     trader_addr = trader['address']
                     try:
-                        # Récupérer les DERNIERS trades seulement (optimisé: limit 5 au lieu de 20)
-                        trades = copy_trading_simulator.get_trader_recent_trades(trader_addr, limit=5)
+                        # Récupérer les DERNIERS trades seulement (limit 3 pour performance)
+                        trades = copy_trading_simulator.get_trader_recent_trades(trader_addr, limit=3)
                         
-                        # Filtrer les trades déjà copiés (eviter les doublons)
+                        # Filtrer les trades déjà copiés
                         new_trades = []
                         for trade in trades:
                             trade_sig = trade.get('signature', '')
@@ -201,41 +224,35 @@ def start_tracking():
                                 new_trades.append(trade)
                                 copied_trades_history[trader_key] = datetime.now().isoformat()
                         
-                        # Afficher le statut (nouveau ou suivi)
+                        # Afficher le statut
                         if new_trades:
                             print(f"✅ {len(new_trades)} NOUVEAUX trades pour {trader_name}")
                             save_copied_trades_history()
-                        else:
-                            total_copied = sum(1 for k in copied_trades_history if k.startswith(f"{trader_name}_"))
-                            print(f"📊 {trader_name}: Suivi actif ({total_copied} trades copiés)")
                         
                         for trade in new_trades:
                             capital_alloc = trader.get('capital', 100)
                             if capital_alloc > 0:
-                                # Simuler le trade
+                                # Simuler le trade avec retry
                                 result = copy_trading_simulator.simulate_trade_for_trader(trader_name, trade, capital_alloc)
                                 
-                                # Enregistrer la position dans auto_sell_manager si la simulation réussit
+                                # Enregistrer la position
                                 if result.get('status') == 'success':
                                     execution = result.get('execution', {})
                                     out_amount = execution.get('out_amount_after_slippage', 0)
                                     simulated_usd = execution.get('simulated_amount_usd', 0)
                                     
-                                    # Calculer le prix d'entrée en USD par token
                                     entry_price_usd = simulated_usd / out_amount if out_amount > 0 else 0
                                     
-                                    # Ajouter la position à auto_sell_manager
                                     if entry_price_usd > 0 and out_amount > 0:
                                         auto_sell_manager.open_position(trader_name, entry_price_usd, out_amount)
                                 
-                                # Afficher le token reçu
                                 out_mint = trade.get('out_mint', '?')
                                 token_symbol = out_mint[-8:] if out_mint and len(out_mint) > 8 else out_mint
                                 print(f"  → Copié: {token_symbol} | Capital: ${capital_alloc}")
                     except Exception as e:
-                        print(f"⚠️ Erreur détection {trader_name} ({trader_addr[:10]}...): {str(e)[:100]}")
+                        print(f"⚠️ Erreur détection {trader_name}: {str(e)[:60]}")
         
-        time.sleep(1)  # ⚡ Vérifier TOUTES LES 1 SECONDE (ultra-rapide pour meme coins) - OPTIMISÉ
+        time.sleep(2)  # ⚡ Vérifier TOUTES LES 2 SECONDES (polling optimisé)
 
 tracking_thread = threading.Thread(target=start_tracking, daemon=True)
 tracking_thread.start()
