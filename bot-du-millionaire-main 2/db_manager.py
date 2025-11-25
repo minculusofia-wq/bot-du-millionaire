@@ -30,6 +30,9 @@ class DBManager:
             )
         ''')
         
+        # Index pour optimiser les recherches par wallet
+        c.execute('CREATE INDEX IF NOT EXISTS idx_wallet_history_address ON wallet_history(wallet_address, timestamp DESC)')
+        
         c.execute('''
             CREATE TABLE IF NOT EXISTS trader_portfolio (
                 id INTEGER PRIMARY KEY,
@@ -42,6 +45,9 @@ class DBManager:
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        
+        # Index pour optimiser les recherches par trader
+        c.execute('CREATE INDEX IF NOT EXISTS idx_trader_portfolio_address ON trader_portfolio(trader_address)')
         
         c.execute('''
             CREATE TABLE IF NOT EXISTS portfolio_history (
@@ -77,6 +83,10 @@ class DBManager:
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        
+        # Indexes pour optimiser les recherches
+        c.execute('CREATE INDEX IF NOT EXISTS idx_trades_trader ON simulated_trades(trader_address, timestamp DESC)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_trades_status ON simulated_trades(status, timestamp DESC)')
         
         c.execute('''
             CREATE TABLE IF NOT EXISTS backtesting_results (

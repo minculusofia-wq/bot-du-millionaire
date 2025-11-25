@@ -19,9 +19,9 @@ class RealPortfolioTracker:
         self.rpc_url = self.backend.data.get('rpc_url', 'https://api.mainnet-beta.solana.com')
         self.tracker_data = self._load_tracker_data()
         self.cache = {}  # Cache pour éviter le rate limiting
-        self.cache_ttl = 120  # 2 minutes de cache
+        self.cache_ttl = 300  # 5 minutes de cache (optimisé)
         self.last_rpc_call = 0
-        self.rpc_delay = 1  # 1 seconde entre les appels RPC
+        self.rpc_delay = 0.2  # 200ms entre appels RPC (optimisé de 1s)
         
     def _load_tracker_data(self):
         """Charge les données de suivi des portefeuilles"""
