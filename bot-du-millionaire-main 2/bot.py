@@ -678,23 +678,31 @@ HTML_TEMPLATE = """
             fetch('/api/traders_performance').then(r => r.json()).then(performance => {
                 let html = '';
                 performance.forEach(p => {
-                    const pnl_color = p.pnl >= 0 ? '#00E676' : '#D50000';
-                    const pnl_24h_color = p.pnl_24h >= 0 ? '#00E676' : '#D50000';
-                    const pnl_7d_color = p.pnl_7d >= 0 ? '#00E676' : '#D50000';
+                    // Convertir les strings en nombres pour les comparaisons
+                    const pnl_num = parseFloat(p.pnl);
+                    const pnl_percent_num = parseFloat(p.pnl_percent);
+                    const pnl_24h_num = parseFloat(p.pnl_24h);
+                    const pnl_24h_percent_num = parseFloat(p.pnl_24h_percent);
+                    const pnl_7d_num = parseFloat(p.pnl_7d);
+                    const pnl_7d_percent_num = parseFloat(p.pnl_7d_percent);
+                    
+                    const pnl_color = pnl_num >= 0 ? '#00E676' : '#D50000';
+                    const pnl_24h_color = pnl_24h_num >= 0 ? '#00E676' : '#D50000';
+                    const pnl_7d_color = pnl_7d_num >= 0 ? '#00E676' : '#D50000';
                     const bg_color = p.active ? '#0a4a0a' : 'transparent';
                     const border_style = p.active ? 'border: 2px solid #00E676; box-shadow: 0 0 10px rgba(0, 230, 118, 0.2);' : '';
                     
                     html += `<tr style="background-color: ${bg_color}; ${border_style}">
-                        <td>${p.trader}${p.active ? ' ✅' : ''}</td>
+                        <td>${p.trader}</td>
                         <td>${p.current_value}</td>
-                        <td style="color: ${pnl_color}">
-                            ${p.pnl >= 0 ? '+' : ''}${p.pnl} (${p.pnl_percent >= 0 ? '+' : ''}${p.pnl_percent}%)
+                        <td style="color: ${pnl_color}; font-weight: bold;">
+                            ${pnl_num >= 0 ? '+' : ''}${p.pnl} (${pnl_percent_num >= 0 ? '+' : ''}${p.pnl_percent}%)
                         </td>
-                        <td style="color: ${pnl_24h_color}">
-                            ${p.pnl_24h >= 0 ? '+' : ''}${p.pnl_24h} (${p.pnl_24h_percent >= 0 ? '+' : ''}${p.pnl_24h_percent}%)
+                        <td style="color: ${pnl_24h_color}; font-weight: bold;">
+                            ${pnl_24h_num >= 0 ? '+' : ''}${p.pnl_24h} (${pnl_24h_percent_num >= 0 ? '+' : ''}${p.pnl_24h_percent}%)
                         </td>
-                        <td style="color: ${pnl_7d_color}">
-                            ${p.pnl_7d >= 0 ? '+' : ''}${p.pnl_7d} (${p.pnl_7d_percent >= 0 ? '+' : ''}${p.pnl_7d_percent}%)
+                        <td style="color: ${pnl_7d_color}; font-weight: bold;">
+                            ${pnl_7d_num >= 0 ? '+' : ''}${p.pnl_7d} (${pnl_7d_percent_num >= 0 ? '+' : ''}${p.pnl_7d_percent}%)
                         </td>
                     </tr>`;
                 });
