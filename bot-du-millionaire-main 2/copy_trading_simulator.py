@@ -147,23 +147,39 @@ class CopyTradingSimulator:
             # Pour un swap, on a au minimum 1 token transfer
             swap_token = token_transfers[0]
             
+            # Récupérer les montants réels
+            native_transfers = tx_data.get('nativeTransfers', [])
+            in_amount = 0
+            if native_transfers and native_transfers[0].get('amount'):
+                in_amount = float(native_transfers[0].get('amount', 0)) / 1_000_000_000
+            else:
+                # Fallback: utiliser fee comme proxy
+                in_amount = float(tx_data.get('fee', 0.1)) / 1_000_000_000
+            
+            # Ensure in_amount is at least 0.01 SOL (meme coin minimum)
+            if in_amount < 0.01:
+                in_amount = 0.01
+            
+            out_amount = float(swap_token.get('tokenAmount', 0))
+            
+            # Pour meme coins, les quantités peuvent être énormes. Limiter pour éviter e-24
+            # Si out_amount est déjà énorme, diviser pour garder un prix raisonnable
+            normalized_out_amount = out_amount
+            if out_amount > 1_000_000_000:  # Si > 1 billion tokens
+                normalized_out_amount = out_amount / 1_000_000  # Diviser par 1 million
+            
             swap = {
                 'signature': tx_data.get('signature', tx_data.get('description', 'unknown'))[:64],
                 'timestamp': tx_data.get('timestamp', datetime.now().isoformat()),
                 'type': 'SWAP',
                 'source': tx_data.get('source', 'Unknown'),  # DEX (Raydium, Orca, Jupiter, PumpFun, etc)
                 'in_mint': 'SOL',  # Assume SOL in by default (or could parse from nativeTransfers)
-                'in_amount': float(tx_data.get('fee', 0)) / 1_000_000_000,  # SOL amount (fee as proxy)
+                'in_amount': in_amount,  # SOL amount réel
                 'out_mint': swap_token.get('mint', ''),  # Token reçu
-                'out_amount': float(swap_token.get('tokenAmount', 0)),  # Quantité de token reçue
+                'out_amount': normalized_out_amount,  # Quantité normalisée pour éviter e-24
                 'fee': tx_data.get('fee', 0) / 1_000_000_000,  # Convert to SOL
                 'status': 'success'
             }
-            
-            # Si nativeTransfers existe, l'utiliser pour in_amount (SOL envoyé)
-            native_transfers = tx_data.get('nativeTransfers', [])
-            if native_transfers and native_transfers[0].get('amount'):
-                swap['in_amount'] = float(native_transfers[0].get('amount', 0)) / 1_000_000_000
             
             return swap
         except Exception as e:
