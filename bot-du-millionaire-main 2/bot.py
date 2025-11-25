@@ -820,6 +820,29 @@ HTML_TEMPLATE = """
             }
         }
         
+        function refreshHistory() {
+            fetch('/api/trade_history').then(r => r.json()).then(data => {
+                let html = '';
+                if (data.trades && data.trades.length > 0) {
+                    data.trades.forEach(trade => {
+                        html += `<tr>
+                            <td style="color: #aaa;">${trade.time}</td>
+                            <td style="color: #64B5F6;"><strong>${trade.trader}</strong></td>
+                            <td style="color: #999;">${trade.platform}</td>
+                            <td style="color: #aaa; font-size: 11px; word-break: break-all;">${trade.position_id.slice(0, 20)}...</td>
+                            <td style="color: ${trade.pnl.startsWith('-') ? '#D50000' : '#00E676'};">${trade.pnl}</td>
+                            <td style="color: #FFD600;">${trade.performance}</td>
+                        </tr>`;
+                    });
+                } else {
+                    html = '<tr><td colspan="6" style="text-align: center; color: #999; padding: 20px;">Aucun trade détecté</td></tr>';
+                }
+                document.getElementById('trades_body').innerHTML = html;
+            }).catch(() => {
+                document.getElementById('trades_body').innerHTML = '<tr><td colspan="6" style="text-align: center; color: #999; padding: 20px;">Erreur chargement</td></tr>';
+            });
+        }
+        
         // ============== LIVE DASHBOARD ==============
         function refreshLiveDashboard() {
             // Récupérer status global
@@ -950,6 +973,10 @@ HTML_TEMPLATE = """
         // Rafraîchir les positions toutes les 5 secondes
         setInterval(refreshPositions, 5000);
         refreshPositions();
+        
+        // Rafraîchir l'historique toutes les 3 secondes
+        setInterval(refreshHistory, 3000);
+        refreshHistory();
     </script>
 </body>
 </html>
@@ -1384,6 +1411,35 @@ def api_toggle_auto_sell():
     data = request.get_json()
     auto_sell_manager.auto_sell_enabled = data.get('enabled', True)
     return jsonify({'enabled': auto_sell_manager.auto_sell_enabled})
+
+@app.route('/api/trade_history', methods=['GET'])
+def api_trade_history():
+    """Retourne l'historique des trades copiés"""
+    try:
+        with open('copied_trades_history.json', 'r') as f:
+            history = json.load(f)
+    except:
+        history = {}
+    
+    trades = []
+    for pos_id, timestamp in history.items():
+        try:
+            parts = pos_id.split('_')
+            if len(parts) >= 2:
+                trader_name = '_'.join(parts[:-1])
+                trades.append({
+                    'position_id': pos_id,
+                    'trader': trader_name,
+                    'time': timestamp,
+                    'platform': 'Helius',
+                    'pnl': '$0',
+                    'performance': '0%'
+                })
+        except:
+            pass
+    
+    trades.sort(key=lambda x: x.get('time', ''), reverse=True)
+    return jsonify({'trades': trades[:50]})
 
 if __name__ == '__main__':
     print("🚀 Lancement sur http://0.0.0.0:5000")
