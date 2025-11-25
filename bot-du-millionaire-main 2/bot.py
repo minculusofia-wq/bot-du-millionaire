@@ -53,6 +53,19 @@ print(f"Traders actifs: {sum(1 for t in backend.data.get('traders', []) if t.get
 print(f"Bot activé: {'✅ OUI' if backend.is_running else '❌ NON'}")
 print(f"{'='*60}")
 
+# Charger l'historique des trades copiés pour éviter les doublons
+copied_trades_history = {}
+try:
+    with open('copied_trades_history.json', 'r') as f:
+        copied_trades_history = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    copied_trades_history = {}
+
+def save_copied_trades_history():
+    """Sauvegarde l'historique des trades copiés"""
+    with open('copied_trades_history.json', 'w') as f:
+        json.dump(copied_trades_history, f, indent=2)
+
 # Démarrer le thread de suivi des portefeuilles + simulation copy trading
 def start_tracking():
     # Démarrer le websocket Helius pour détection ultra-rapide
@@ -70,14 +83,32 @@ def start_tracking():
             if backend.data.get('mode') == 'TEST':
                 for trader in backend.data.get('traders', []):
                     if trader.get('active'):
-                        trades = copy_trading_simulator.get_trader_recent_trades(trader['address'], limit=5)
-                        if trades:
-                            print(f"✅ {len(trades)} trades détectés pour {trader['name']}")
+                        trader_name = trader['name']
+                        # Récupérer plus de trades pour voir les nouveaux
+                        trades = copy_trading_simulator.get_trader_recent_trades(trader['address'], limit=20)
+                        
+                        # Filtrer les trades déjà copiés (eviter les doublons)
+                        new_trades = []
                         for trade in trades:
+                            trade_sig = trade.get('signature', '')
+                            trader_key = f"{trader_name}_{trade_sig}"
+                            
+                            if trader_key not in copied_trades_history:
+                                new_trades.append(trade)
+                                copied_trades_history[trader_key] = datetime.now().isoformat()
+                        
+                        if new_trades:
+                            print(f"✅ {len(new_trades)} NOUVEAUX trades pour {trader_name}")
+                            save_copied_trades_history()
+                        
+                        for trade in new_trades:
                             capital_alloc = trader.get('capital', 100)
                             if capital_alloc > 0:
-                                copy_trading_simulator.simulate_trade_for_trader(trader['name'], trade, capital_alloc)
-                                print(f"  → Copié: {trade.get('symbol', '?')} | Capital: ${capital_alloc}")
+                                copy_trading_simulator.simulate_trade_for_trader(trader_name, trade, capital_alloc)
+                                # Afficher le token reçu
+                                out_mint = trade.get('out_mint', '?')
+                                token_symbol = out_mint[-8:] if out_mint and len(out_mint) > 8 else out_mint
+                                print(f"  → Copié: {token_symbol} | Capital: ${capital_alloc}")
         time.sleep(5)  # ⚡ Vérifier toutes les 5 secondes (ultra-rapide pour meme coins)
 
 tracking_thread = threading.Thread(target=start_tracking, daemon=True)
