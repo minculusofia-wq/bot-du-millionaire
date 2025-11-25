@@ -97,9 +97,13 @@ def start_tracking():
                 
                 for trader in active_traders:
                     trader_name = trader['name']
+                    trader_addr = trader['address']
                     try:
                         # Récupérer les DERNIERS trades seulement (optimisé: limit 5 au lieu de 20)
-                        trades = copy_trading_simulator.get_trader_recent_trades(trader['address'], limit=5)
+                        trades = copy_trading_simulator.get_trader_recent_trades(trader_addr, limit=5)
+                        
+                        # DEBUG: Afficher le nombre de trades trouvés
+                        print(f"🔍 DEBUG {trader_name}: {len(trades) if trades else 0} trades trouvés")
                         
                         # Filtrer les trades déjà copiés (eviter les doublons)
                         new_trades = []
@@ -124,7 +128,7 @@ def start_tracking():
                                 token_symbol = out_mint[-8:] if out_mint and len(out_mint) > 8 else out_mint
                                 print(f"  → Copié: {token_symbol} | Capital: ${capital_alloc}")
                     except Exception as e:
-                        print(f"⚠️ Erreur détection {trader_name}: {e}")
+                        print(f"⚠️ Erreur détection {trader_name} ({trader_addr[:10]}...): {str(e)[:100]}")
         
         time.sleep(1)  # ⚡ Vérifier TOUTES LES 1 SECONDE (ultra-rapide pour meme coins) - OPTIMISÉ
 
