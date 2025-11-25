@@ -1170,17 +1170,24 @@ def index():
 
 @app.route('/api/status')
 def api_status():
+    # En REAL mode: afficher le solde du wallet, sinon utiliser total_capital du config
+    mode = backend.data.get('mode', 'TEST')
+    if mode == 'REAL':
+        total_capital = backend.get_wallet_balance_dynamic()
+    else:
+        total_capital = backend.data.get('total_capital', 1000)
+    
     return jsonify({
         'portfolio': backend.get_portfolio_value(),
         'pnl_total': backend.get_total_pnl(),
         'pnl_percent': backend.get_total_pnl_percent(),
         'running': backend.is_running,
-        'mode': backend.data.get('mode', 'TEST'),
+        'mode': mode,
         'active_traders': backend.get_active_traders_count(),
         'traders': backend.data['traders'],
         'slippage': backend.data.get('slippage', 1.0),
         'currency': backend.data.get('currency', 'USD'),
-        'total_capital': backend.data.get('total_capital', 1000)
+        'total_capital': total_capital
     })
 
 @app.route('/api/traders_performance')

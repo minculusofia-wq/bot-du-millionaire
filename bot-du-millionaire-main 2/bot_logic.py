@@ -3,6 +3,11 @@ import random
 import time
 from datetime import datetime, timedelta
 
+try:
+    from solders.keypair import Keypair
+except ImportError:
+    Keypair = None
+
 class BotBackend:
     def __init__(self):
         self.config_file = "config.json"
@@ -15,6 +20,9 @@ class BotBackend:
         self.portfolio_cache = None
         self.portfolio_cache_time = None
         self.portfolio_cache_ttl = 5  # Cache 5 secondes
+        self.wallet_balance_cache = None
+        self.wallet_balance_cache_time = None
+        self.wallet_balance_cache_ttl = 10  # Cache 10 secondes
         
     def load_config(self):
         try:
@@ -343,6 +351,69 @@ class BotBackend:
     def get_total_capital(self):
         """Retourne le capital total du portefeuille"""
         return self.data.get('total_capital', 1000.0)
+    
+    def get_wallet_balance_dynamic(self):
+        """
+        Récupère le solde du wallet Solana en temps réel
+        - Si clé privée fournie → solde réel du wallet
+        - Si pas de clé privée → 0
+        """
+        import requests
+        import os
+        
+        # Vérifier le cache
+        current_time = time.time()
+        if self.wallet_balance_cache is not None and self.wallet_balance_cache_time is not None:
+            if current_time - self.wallet_balance_cache_time < self.wallet_balance_cache_ttl:
+                return self.wallet_balance_cache
+        
+        # Pas de clé privée → retourner 0
+        private_key = self.data.get('wallet_private_key', '').strip()
+        if not private_key or private_key == '':
+            self.wallet_balance_cache = 0.0
+            self.wallet_balance_cache_time = current_time
+            return 0.0
+        
+        try:
+            # Essayer d'extraire l'adresse de la clé privée
+            if Keypair is not None:
+                try:
+                    keypair = Keypair.from_secret_key(bytes.fromhex(private_key))
+                    wallet_address = str(keypair.pubkey())
+                except Exception as e:
+                    print(f"⚠️ Erreur extraction adresse: {e}")
+                    return 0.0
+            else:
+                # Fallback: pas de solders
+                print("⚠️ Solders non disponible - impossible de lire le solde")
+                return 0.0
+            
+            # Récupérer le solde via RPC
+            rpc_url = self.data.get('rpc_url', 'https://api.mainnet-beta.solana.com')
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getBalance",
+                "params": [wallet_address]
+            }
+            response = requests.post(rpc_url, json=payload, timeout=5)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if 'result' in data:
+                    balance_lamports = data['result'].get('value', 0)
+                    balance_sol = float(balance_lamports) / 1_000_000_000
+                    
+                    # Cacher le résultat
+                    self.wallet_balance_cache = balance_sol
+                    self.wallet_balance_cache_time = current_time
+                    
+                    return balance_sol
+        except Exception as e:
+            print(f"⚠️ Erreur récupération solde wallet: {e}")
+        
+        # En cas d'erreur, retourner 0
+        return 0.0
     
     def get_capital_summary(self):
         """Retourne un résumé du capital : total, utilisé, restant"""
