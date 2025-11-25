@@ -1099,33 +1099,29 @@ def api_status():
 
 @app.route('/api/traders_performance')
 def api_traders_performance():
-    """Retourne les performances COMPLÈTES de TOUS les traders"""
+    """Retourne les performances des TRADERS ACTIFS UNIQUEMENT"""
     performance = []
     
-    # ✅ Afficher TOUS les traders avec données COHÉRENTES:
-    # - Traders ACTIFS: PnL du BOT (auto_sell_manager)
-    # - Traders INACTIFS: PnL du WALLET réel (portfolio_tracker)
+    # ✅ Afficher SEULEMENT les traders ACTIFS qu'on copie
+    # Les traders inactifs n'ont pas besoin d'être affichés
     
     for trader in backend.data['traders']:
         is_active = trader.get('active')
         
-        if is_active:
-            # TRADER ACTIF: Afficher PnL du BOT (positions copiées)
-            trader_pnl_data = auto_sell_manager.get_trader_pnl(trader['name'])
-            pnl_display = trader_pnl_data['pnl']
-            pnl_percent_display = trader_pnl_data['pnl_percent']
-        else:
-            # TRADER INACTIF: Afficher PnL réel du WALLET Solana
-            perf = portfolio_tracker.get_trader_performance(trader['address'])
-            pnl_display = perf['pnl']
-            pnl_percent_display = perf['pnl_percent']
+        # N'afficher que les traders ACTIFS
+        if not is_active:
+            continue
         
-        # Récupérer infos wallet (identique pour actifs et inactifs)
+        # TRADER ACTIF: Récupérer le PnL du BOT
+        trader_pnl_data = auto_sell_manager.get_trader_pnl(trader['name'])
+        pnl_display = trader_pnl_data['pnl']
+        pnl_percent_display = trader_pnl_data['pnl_percent']
+        
+        # Récupérer infos wallet pour le solde actuel
         perf = portfolio_tracker.get_trader_performance(trader['address'])
         
-        status = "✅" if is_active else ""
         performance.append({
-            'trader': f"{status} {trader['emoji']} {trader['name']}",
+            'trader': f"✅ {trader['emoji']} {trader['name']}",
             'current_value': f"${perf['current_value']:.2f}",
             'pnl': f"{pnl_display:.2f}",
             'pnl_percent': f"{pnl_percent_display:.2f}",
@@ -1133,8 +1129,7 @@ def api_traders_performance():
             'pnl_24h_percent': f"{perf['pnl_24h_percent']:.2f}",
             'pnl_7d': f"{perf['pnl_7d']:.2f}",
             'pnl_7d_percent': f"{perf['pnl_7d_percent']:.2f}",
-            'active': is_active,
-            'type': 'BOT' if is_active else 'WALLET'
+            'active': True
         })
     
     return jsonify(performance)
