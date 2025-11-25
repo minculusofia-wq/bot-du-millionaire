@@ -10,7 +10,7 @@
 
 ### 🎯 Gestion des Traders
 - ✅ **10 traders pré-configurés** avec adresses Solana
-- ✅ **Limite de 3 traders actifs** simultanément
+- ✅ **Limite de 2 traders actifs** simultanément
 - ✅ **Édition en temps réel** : Modifier Nom, Emoji et Adresse
 - ✅ **Surbrillance visuelle** des traders sélectionnés
   - 🟢 Bordure verte sur la liste des traders
@@ -25,14 +25,7 @@
 - ✅ **Mode TEST = MODE REAL** : Logique identique dans les deux modes
 
 ### 💰 Contrôle Trading Avancé
-- ✅ **3 Take Profit configurables** (TP1, TP2, TP3)
-  - TP1 : 33% de position à +10% de profit
-  - TP2 : 33% de position à +25% de profit  
-  - TP3 : 34% de position à +50% de profit
-
-- ✅ **Stop Loss amélioré** (structure identique aux TP)
-  - SL : 100% de position à -5% de perte
-  - Configuration flexible
+- ✅ **Take Profit & Stop Loss configurables** par trader
 
 - ✅ **Slippage réglable** : 0.1% à 100%
 - ✅ **Mode USD/SOL** : Changement instantané
@@ -185,7 +178,7 @@ Les paramètres principaux sont sauvegardés automatiquement :
 {
   "mode": "TEST",
   "slippage": 1.0,
-  "active_traders_limit": 3,
+  "active_traders_limit": 2,
   "currency": "USD",
   "tp1_percent": 33,
   "tp1_profit": 10,
