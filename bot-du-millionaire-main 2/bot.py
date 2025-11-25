@@ -844,11 +844,15 @@ HTML_TEMPLATE = """
             });
         }
         
-        // BENCHMARK FUNCTIONS
+        // BENCHMARK FUNCTIONS (sans scintillement)
         function updateBenchmark() {
             document.getElementById('benchmark_ranking').innerHTML = '<tr><td colspan="4" style="text-align: center;">⏳ Chargement...</td></tr>';
             
-            fetch('/api/benchmark').then(r => r.json()).then(benchmark => {
+            // Appels PARALLÈLES (pas de cascade) pour éviter le scintillement
+            Promise.all([
+                fetch('/api/benchmark').then(r => r.json()),
+                fetch('/api/benchmark_ranking').then(r => r.json())
+            ]).then(([benchmark, rankData]) => {
                 // Update bot stats
                 const bot_pnl_color = benchmark.bot_pnl >= 0 ? '#00E676' : '#D50000';
                 document.getElementById('bot_benchmark_pnl').textContent = (benchmark.bot_pnl >= 0 ? '+' : '') + benchmark.bot_pnl.toFixed(2) + '%';
@@ -862,22 +866,21 @@ HTML_TEMPLATE = """
                     document.getElementById('best_trader_pnl').textContent = (benchmark.best_trader.trader_pnl >= 0 ? '+' : '') + benchmark.best_trader.trader_pnl.toFixed(2) + '%';
                     document.getElementById('best_trader_wr').textContent = benchmark.best_trader.trader_win_rate.toFixed(1) + '%';
                 }
-            }).then(() => {
-                fetch('/api/benchmark_ranking').then(r => r.json()).then(data => {
-                    let html = '';
-                    data.ranking.forEach(r => {
-                        const bg = r.rank === 1 ? '#0a3a0a' : (r.rank <= 3 ? '#1a2a3a' : 'transparent');
-                        const color = r.rank === 1 ? '#FFD600' : '#64B5F6';
-                        const medal = r.rank === 1 ? '🥇' : (r.rank === 2 ? '🥈' : (r.rank === 3 ? '🥉' : ''));
-                        html += `<tr style="background: ${bg};">
-                            <td style="color: ${color}; font-weight: bold;">${medal} #${r.rank}</td>
-                            <td>${r.name}</td>
-                            <td style="color: ${r.pnl >= 0 ? '#00E676' : '#D50000'};">${(r.pnl >= 0 ? '+' : '')}${r.pnl.toFixed(2)}%</td>
-                            <td style="color: #FFD600;">${r.win_rate.toFixed(1)}%</td>
-                        </tr>`;
-                    });
-                    document.getElementById('benchmark_ranking').innerHTML = html;
+                
+                // Update ranking (en même temps)
+                let html = '';
+                rankData.ranking.forEach(r => {
+                    const bg = r.rank === 1 ? '#0a3a0a' : (r.rank <= 3 ? '#1a2a3a' : 'transparent');
+                    const color = r.rank === 1 ? '#FFD600' : '#64B5F6';
+                    const medal = r.rank === 1 ? '🥇' : (r.rank === 2 ? '🥈' : (r.rank === 3 ? '🥉' : ''));
+                    html += `<tr style="background: ${bg};">
+                        <td style="color: ${color}; font-weight: bold;">${medal} #${r.rank}</td>
+                        <td>${r.name}</td>
+                        <td style="color: ${r.pnl >= 0 ? '#00E676' : '#D50000'};">${(r.pnl >= 0 ? '+' : '')}${r.pnl.toFixed(2)}%</td>
+                        <td style="color: #FFD600;">${r.win_rate.toFixed(1)}%</td>
+                    </tr>`;
                 });
+                document.getElementById('benchmark_ranking').innerHTML = html;
             });
         }
         
@@ -1627,31 +1630,47 @@ def api_benchmark():
 
 @app.route('/api/benchmark_ranking', methods=['GET'])
 def api_benchmark_ranking():
-    """Classement TRADERS SEULEMENT - pour choisir les meilleurs"""
+    """Classement TRADERS SEULEMENT - triés correctement"""
     try:
         # Récupérer TOUS les traders avec leurs performances
-        traders_entries = []
+        traders_with_data = []  # Traders avec données (PnL != 0)
+        traders_no_data = []    # Traders sans données (PnL == 0)
+        
         for trader in backend.data['traders']:
             perf = portfolio_tracker.get_trader_performance(trader['address'])
-            traders_entries.append({
+            pnl_7d = perf.get('pnl_7d', 0.0)
+            
+            entry = {
                 'name': f"{trader['emoji']} {trader['name']}",
                 'address': trader['address'],
-                'pnl': perf.get('pnl_7d', 0.0),  # PnL 7 jours
-                'pnl_24h': perf.get('pnl_24h', 0.0),  # PnL 24h
+                'pnl': pnl_7d,
+                'pnl_24h': perf.get('pnl_24h', 0.0),
                 'win_rate': perf.get('win_rate', 0.0)
-            })
+            }
+            
+            # Séparer les traders avec et sans données
+            if pnl_7d != 0.0:
+                traders_with_data.append(entry)
+            else:
+                traders_no_data.append(entry)
         
-        # Trier les traders par PnL descendant
-        traders_entries.sort(key=lambda x: x['pnl'], reverse=True)
+        # Trier traders AVEC données par PnL descendant (en haut)
+        traders_with_data.sort(key=lambda x: x['pnl'], reverse=True)
+        
+        # Trier traders SANS données alphabétiquement (en bas)
+        traders_no_data.sort(key=lambda x: x['name'])
+        
+        # Fusionner: traders avec données EN PREMIER, puis sans données
+        all_ranked = traders_with_data + traders_no_data
         
         # Assigner les rangs
-        for rank, entry in enumerate(traders_entries, 1):
+        for rank, entry in enumerate(all_ranked, 1):
             entry['rank'] = rank
         
-        return jsonify({'ranking': traders_entries})
+        return jsonify({'ranking': all_ranked})
     except Exception as e:
         print(f"❌ Erreur benchmark_ranking: {e}")
-        # Fallback ranking avec traders seulement
+        # Fallback ranking
         return jsonify({'ranking': [
             {'rank': 1, 'name': '🚀 Japon', 'pnl': 0.0, 'win_rate': 0.0},
             {'rank': 2, 'name': '⚡ Starter', 'pnl': 0.0, 'win_rate': 0.0},
