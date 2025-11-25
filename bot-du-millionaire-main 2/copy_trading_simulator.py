@@ -137,25 +137,33 @@ class CopyTradingSimulator:
                 return None
             
             # Extraire les informations de swap
-            token_transfers = tx_data.get('token_transfers', [])
-            if len(token_transfers) < 2:
+            # Note: Helius retourne "tokenTransfers" (camelCase), pas "token_transfers"
+            token_transfers = tx_data.get('tokenTransfers', tx_data.get('token_transfers', []))
+            
+            # Si pas de token transfers, on ne peut pas extraire les infos (peut être SOL/Token swap)
+            if len(token_transfers) < 1:
                 return None
             
-            in_token = token_transfers[0]
-            out_token = token_transfers[1]
+            # Pour un swap, on a au minimum 1 token transfer
+            swap_token = token_transfers[0]
             
             swap = {
                 'signature': tx_data.get('signature', tx_data.get('description', 'unknown'))[:64],
                 'timestamp': tx_data.get('timestamp', datetime.now().isoformat()),
                 'type': 'SWAP',
-                'source': tx_data.get('source', 'Unknown'),  # DEX (Raydium, Orca, Jupiter, etc)
-                'in_mint': in_token.get('mint', ''),
-                'in_amount': float(in_token.get('tokenAmount', 0)),
-                'out_mint': out_token.get('mint', ''),
-                'out_amount': float(out_token.get('tokenAmount', 0)),
+                'source': tx_data.get('source', 'Unknown'),  # DEX (Raydium, Orca, Jupiter, PumpFun, etc)
+                'in_mint': 'SOL',  # Assume SOL in by default (or could parse from nativeTransfers)
+                'in_amount': float(tx_data.get('fee', 0)) / 1_000_000_000,  # SOL amount (fee as proxy)
+                'out_mint': swap_token.get('mint', ''),  # Token reçu
+                'out_amount': float(swap_token.get('tokenAmount', 0)),  # Quantité de token reçue
                 'fee': tx_data.get('fee', 0) / 1_000_000_000,  # Convert to SOL
                 'status': 'success'
             }
+            
+            # Si nativeTransfers existe, l'utiliser pour in_amount (SOL envoyé)
+            native_transfers = tx_data.get('nativeTransfers', [])
+            if native_transfers and native_transfers[0].get('amount'):
+                swap['in_amount'] = float(native_transfers[0].get('amount', 0)) / 1_000_000_000
             
             return swap
         except Exception as e:
