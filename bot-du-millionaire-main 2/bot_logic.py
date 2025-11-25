@@ -216,28 +216,11 @@ class BotBackend:
                 self._simulate_trade_exit(self.test_trades.index(trade))
 
     def get_portfolio_value(self):
-        """Calcule la valeur du portefeuille"""
-        # Vérifier le cache
-        if self.portfolio_cache is not None and self.portfolio_cache_time is not None:
-            elapsed = time.time() - self.portfolio_cache_time
-            if elapsed < self.portfolio_cache_ttl:
-                return self.portfolio_cache
-        
-        if not self.is_running:
-            result = round(self.virtual_balance, 2)
-        elif self.data.get("mode") == "TEST":
-            # En mode TEST, calculer basé sur les trades
-            closed_pnl = sum([t['pnl'] for t in self.test_trades if t['status'] != 'OPEN'])
-            open_pnl = sum([t['pnl'] for t in self.test_trades if t['status'] == 'OPEN'])
-            result = round(1000 + closed_pnl + open_pnl, 2)
-        else:
-            # En mode REEL, variation légère
-            self.virtual_balance += random.uniform(-5, 10)
-            result = round(self.virtual_balance, 2)
-        
-        # Mettre en cache
-        self.portfolio_cache = result
-        self.portfolio_cache_time = time.time()
+        """Calcule la valeur du portefeuille = capital initial + PnL total"""
+        # Calculer le PnL total depuis les positions réelles
+        total_pnl = self.get_total_pnl()
+        initial_capital = self.data.get('total_capital', 1000)
+        result = round(initial_capital + total_pnl, 2)
         return result
 
     def get_total_pnl(self):
