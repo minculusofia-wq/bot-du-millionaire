@@ -6,6 +6,7 @@ import threading
 import os
 from pathlib import Path
 from datetime import datetime
+from typing import Dict
 
 # ⚡ Charger variables d'environnement depuis .env (si présent)
 def load_env_file():
@@ -67,14 +68,99 @@ def save_copied_trades_history():
     with open('copied_trades_history.json', 'w') as f:
         json.dump(copied_trades_history, f, indent=2)
 
+# ⚡ WEBSOCKET CALLBACKS - Détection ultra-rapide des trades des traders
+def on_trader_transaction_detected(trade_event: Dict):
+    """Callback appelé par websocket quand un trader fait une transaction (~100-200ms)"""
+    try:
+        trader_addr = trade_event.get('trader_address', '')
+        signature = trade_event.get('signature', '')
+        
+        if not trader_addr or not signature:
+            return
+        
+        # Trouver le trader correspondant
+        trader_obj = None
+        trader_name = None
+        for t in backend.data.get('traders', []):
+            if t['address'] == trader_addr:
+                trader_obj = t
+                trader_name = t['name']
+                break
+        
+        if not trader_obj or not trader_obj.get('active'):
+            return
+        
+        # Vérifier si déjà copié
+        trader_key = f"{trader_name}_{signature}"
+        if trader_key in copied_trades_history:
+            return
+        
+        # Marquer comme copié
+        copied_trades_history[trader_key] = datetime.now().isoformat()
+        save_copied_trades_history()
+        
+        # Récupérer les infos du trade via Helius (détail complet)
+        try:
+            trades = copy_trading_simulator.get_trader_recent_trades(trader_addr, limit=1)
+            if trades and trades[0].get('signature') == signature:
+                trade = trades[0]
+                
+                # Simuler le trade immédiatement
+                capital_alloc = trader_obj.get('capital', 100)
+                if capital_alloc > 0:
+                    result = copy_trading_simulator.simulate_trade_for_trader(trader_name, trade, capital_alloc)
+                    
+                    # Enregistrer la position
+                    if result.get('status') == 'success':
+                        execution = result.get('execution', {})
+                        out_amount = execution.get('out_amount_after_slippage', 0)
+                        simulated_usd = execution.get('simulated_amount_usd', 0)
+                        entry_price_usd = simulated_usd / out_amount if out_amount > 0 else 0
+                        
+                        if entry_price_usd > 0 and out_amount > 0:
+                            auto_sell_manager.open_position(trader_name, entry_price_usd, out_amount)
+                            out_mint = trade.get('out_mint', '?')
+                            token_symbol = out_mint[-8:] if out_mint and len(out_mint) > 8 else out_mint
+                            print(f"⚡ WEBSOCKET (<200ms): {trader_name} → {token_symbol} | Capital: ${capital_alloc}")
+        except Exception as e:
+            print(f"⚠️ Erreur traitement websocket trade: {str(e)[:80]}")
+    
+    except Exception as e:
+        print(f"⚠️ Erreur callback websocket: {e}")
+
+def subscribe_traders_to_websocket():
+    """Abonne les traders actifs au websocket Helius pour détection ultra-rapide"""
+    try:
+        active_traders = [t for t in backend.data.get('traders', []) if t.get('active')]
+        
+        if not active_traders:
+            print("  └─ Aucun trader actif pour websocket")
+            return
+        
+        for trader in active_traders:
+            helius_websocket.subscribe_to_trader(
+                trader['address'],
+                on_trader_transaction_detected
+            )
+        
+        print(f"  ├─ {len(active_traders)} traders websocket configurés")
+    except Exception as e:
+        print(f"  └─ Erreur abonnement websocket: {e}")
+
 # Démarrer le thread de suivi des portefeuilles + simulation copy trading
 def start_tracking():
     # Démarrer le websocket Helius pour détection ultra-rapide
+    print("\n🚀 INITIALISATION WEBSOCKET:")
     try:
         helius_websocket.start()
+        # Attendre 1 sec pour que le websocket se connecte
+        time.sleep(1)
+        # Abonner les traders
+        subscribe_traders_to_websocket()
     except Exception as e:
-        print(f"⚠️ Websocket Helius non disponible: {e}")
+        print(f"  └─ ⚠️ Websocket non disponible: {e}")
     
+    print()
     last_log_time = 0  # Pour afficher les logs de debug périodiquement
     
     while True:

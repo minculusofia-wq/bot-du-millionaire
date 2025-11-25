@@ -34,7 +34,7 @@ class HeliosWebsocketListener:
     def subscribe_to_trader(self, trader_address: str, callback: Callable):
         """S'abonne aux transactions d'un trader"""
         self.subscriptions[trader_address] = callback
-        print(f"✅ Abonné à {trader_address[:10]}...")
+        print(f"✅ Abonné à {trader_address[:10]}... (websocket)")
     
     def unsubscribe_from_trader(self, trader_address: str):
         """Se désabonne d'un trader"""
@@ -45,78 +45,120 @@ class HeliosWebsocketListener:
     async def _connect_and_listen(self):
         """Connecte au websocket et écoute les transactions"""
         if not self.api_key or not websockets:
-            # Silencieux - fallback sur polling qui fonctionne très bien
+            print("⚠️ Websocket Helius non disponible - fallback sur polling")
             return
         
-        try:
-            async with websockets.connect(self.wss_url) as websocket:
-                self.websocket = websocket
-                # Silencieux - fallback sur polling
-                
-                # S'abonner aux adresses des traders
-                for trader_address in self.subscriptions.keys():
-                    subscribe_msg = {
-                        "jsonrpc": "2.0",
-                        "id": 1,
-                        "method": "accountSubscribe",
-                        "params": [
-                            trader_address,
-                            {"encoding": "jsonParsed"}
-                        ]
-                    }
-                    await websocket.send(json.dumps(subscribe_msg))
-                
-                # Écouter les messages
-                async for message in websocket:
-                    try:
-                        data = json.loads(message)
-                        await self._handle_transaction(data)
-                    except json.JSONDecodeError:
-                        continue
+        retry_count = 0
         
-        except Exception as e:
-            # Silencieux - WebSocket optionnel, polling HTTP fonctionne
-            self.websocket = None
+        while self.is_running and retry_count < self.max_retries:
+            try:
+                print(f"🔌 Connexion websocket Helius... (tentative {retry_count + 1})")
+                
+                async with websockets.connect(self.wss_url) as websocket:
+                    self.websocket = websocket
+                    retry_count = 0  # Reset retry count on successful connection
+                    print("✅ Websocket Helius connecté")
+                    
+                    # S'abonner aux adresses des traders
+                    for trader_address in self.subscriptions.keys():
+                        subscribe_msg = {
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "logsSubscribe",
+                            "params": [
+                                {
+                                    "mentions": [trader_address]
+                                },
+                                {
+                                    "commitment": "processed"
+                                }
+                            ]
+                        }
+                        try:
+                            await websocket.send(json.dumps(subscribe_msg))
+                            print(f"  ├─ Abonnement logs pour {trader_address[:10]}...")
+                        except Exception as e:
+                            print(f"  └─ Erreur abonnement: {e}")
+                    
+                    # Écouter les messages
+                    async for message in websocket:
+                        if not self.is_running:
+                            break
+                        
+                        try:
+                            data = json.loads(message)
+                            await self._handle_notification(data)
+                        except json.JSONDecodeError:
+                            continue
+                        except Exception as e:
+                            print(f"⚠️ Erreur traitement message: {e}")
+                
+            except asyncio.CancelledError:
+                print("🛑 Websocket Helius arrêté")
+                break
+            except Exception as e:
+                retry_count += 1
+                if self.is_running:
+                    print(f"⚠️ Erreur websocket (retry {retry_count}/{self.max_retries}): {str(e)[:100]}")
+                    if retry_count < self.max_retries:
+                        await asyncio.sleep(self.reconnect_delay)
+                self.websocket = None
     
-    async def _handle_transaction(self, data: Dict):
-        """Traite une transaction reçue du websocket"""
+    async def _handle_notification(self, data: Dict):
+        """Traite une notification reçue du websocket"""
         try:
-            # Vérifier si c'est une transaction swap
-            if 'params' not in data:
+            # Vérifier si c'est une subscription update
+            if 'result' not in data:
                 return
             
-            result = data.get('params', {}).get('result', {})
-            if not result:
-                return
+            result = data.get('result', {})
             
-            # Extraire l'adresse du trader (de la clé du message)
-            # Helius envoie les transactions pour l'adresse abonnée
-            trader_address = result.get('owner')
-            
-            if trader_address and trader_address in self.subscriptions:
-                # Vérifier si c'est un swap (token transfers)
-                tx_data = result.get('transaction', {})
+            # Extraire les infos de la notification
+            if isinstance(result, dict):
+                logs = result.get('logs', [])
+                signature = result.get('signature', '')
                 
-                # Créer un objet de transaction
-                trade_event = {
-                    'type': 'SWAP',
-                    'trader_address': trader_address,
-                    'timestamp': datetime.now().isoformat(),
-                    'raw_data': result
-                }
-                
-                # Appeler le callback
-                callback = self.subscriptions[trader_address]
-                if callback:
-                    callback(trade_event)
+                # Chercher le trader correspondant à cette TX
+                # Les logs mentionnent les adresses impliquées
+                for trader_address, callback in self.subscriptions.items():
+                    # La transaction concerne ce trader
+                    # Chercher si c'est un swap en regardant les logs
+                    
+                    # Heuristique: si y a du "SWAP" ou des DEX mentions
+                    is_swap = any(
+                        keyword in str(logs).upper()
+                        for keyword in ['SWAP', 'EXCHANGE', 'JUPITERAGGREGATE', 'RAYDIUM', 'ORCA', 'SERUM', 'PUMPFUN']
+                    )
+                    
+                    if is_swap or signature:  # Toute TX du trader
+                        # Créer un événement de trade
+                        trade_event = {
+                            'type': 'SWAP',
+                            'trader_address': trader_address,
+                            'signature': signature,
+                            'timestamp': datetime.now().isoformat(),
+                            'logs': logs,
+                            'raw_data': result
+                        }
+                        
+                        # Appeler le callback de manière non-bloquante
+                        if callback:
+                            try:
+                                if asyncio.iscoroutinefunction(callback):
+                                    await callback(trade_event)
+                                else:
+                                    # Appeler dans un thread si callback n'est pas async
+                                    callback(trade_event)
+                            except Exception as e:
+                                print(f"⚠️ Erreur callback: {e}")
         
         except Exception as e:
-            print(f"⚠️ Erreur traitement transaction: {e}")
+            print(f"⚠️ Erreur traitement notification: {e}")
     
     def start(self):
         """Démarre le listener websocket (non-bloquant)"""
         if not self.api_key:
-            print("⚠️ Websocket Helius non disponible")
+            print("⚠️ Websocket Helius non disponible (API key manquante)")
             return
         
         if self.is_running:
@@ -132,12 +174,13 @@ class HeliosWebsocketListener:
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(self._connect_and_listen())
             except Exception as e:
-                # Silencieux - WebSocket optionnel, polling fonctionne parfaitement
-                pass
+                print(f"❌ Erreur websocket: {e}")
+            finally:
+                self.is_running = False
         
         thread = threading.Thread(target=run_websocket, daemon=True)
         thread.start()
-        print("✅ Websocket Helius démarré (background)")
+        print("✅ Websocket Helius démarré")
     
     def stop(self):
         """Arrête le listener websocket"""
