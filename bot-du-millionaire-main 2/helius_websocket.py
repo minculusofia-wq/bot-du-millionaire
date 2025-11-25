@@ -45,13 +45,13 @@ class HeliosWebsocketListener:
     async def _connect_and_listen(self):
         """Connecte au websocket et écoute les transactions"""
         if not self.api_key or not websockets:
-            print("⚠️ Websocket Helius non disponible - fallback sur polling")
+            # Silencieux - fallback sur polling qui fonctionne très bien
             return
         
         try:
             async with websockets.connect(self.wss_url) as websocket:
                 self.websocket = websocket
-                print("✅ Websocket Helius connecté")
+                # Silencieux - fallback sur polling
                 
                 # S'abonner aux adresses des traders
                 for trader_address in self.subscriptions.keys():
@@ -75,7 +75,7 @@ class HeliosWebsocketListener:
                         continue
         
         except Exception as e:
-            print(f"❌ Erreur websocket: {e}")
+            # Silencieux - WebSocket optionnel, polling HTTP fonctionne
             self.websocket = None
     
     async def _handle_transaction(self, data: Dict):
