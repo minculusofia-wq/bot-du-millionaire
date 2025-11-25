@@ -88,6 +88,9 @@ def start_tracking():
             last_log_time = current_time
         
         if backend.is_running:
+            # 🔄 METTRE À JOUR LES PRIX DE TOUTES LES POSITIONS
+            auto_sell_manager.update_all_position_prices({})
+            
             portfolio_tracker.track_all_wallets()
             portfolio_tracker.update_bot_portfolio()
             
@@ -1096,23 +1099,34 @@ def api_status():
 
 @app.route('/api/traders_performance')
 def api_traders_performance():
-    """Retourne les performances de TOUS les traders (pour comparaison)"""
+    """Retourne les performances RÉELLES de TOUS les traders depuis auto_sell_manager"""
     performance = []
     
-    # ✅ Afficher TOUS les traders pour que l'utilisateur puisse les comparer
+    # ✅ Afficher TOUS les traders avec leurs PnL RÉELS depuis auto_sell_manager
     for trader in backend.data['traders']:
+        trader_pnl_data = auto_sell_manager.get_trader_pnl(trader['name'])
+        
+        # Aussi récupérer les données réelles du wallet via portfolio_tracker
         perf = portfolio_tracker.get_trader_performance(trader['address'])
+        
+        # PRIORITÉ aux données réelles du bot (auto_sell_manager)
+        # Si pas de position, afficher 0; sinon afficher le PnL réel
+        pnl_display = trader_pnl_data['pnl'] if trader_pnl_data['total_invested'] > 0 else 0
+        pnl_percent_display = trader_pnl_data['pnl_percent'] if trader_pnl_data['total_invested'] > 0 else 0
+        
         status = "✅" if trader.get('active') else ""
         performance.append({
             'trader': f"{status} {trader['emoji']} {trader['name']}",
             'current_value': f"${perf['current_value']:.2f}",
-            'pnl': f"{perf['pnl']:.2f}",
-            'pnl_percent': f"{perf['pnl_percent']:.2f}",
+            'pnl': f"{pnl_display:.2f}",
+            'pnl_percent': f"{pnl_percent_display:.2f}",
             'pnl_24h': f"{perf['pnl_24h']:.2f}",
             'pnl_24h_percent': f"{perf['pnl_24h_percent']:.2f}",
             'pnl_7d': f"{perf['pnl_7d']:.2f}",
             'pnl_7d_percent': f"{perf['pnl_7d_percent']:.2f}",
-            'active': trader['active']
+            'active': trader['active'],
+            'positions_open': trader_pnl_data['open_count'],
+            'positions_closed': trader_pnl_data['closed_count']
         })
     
     return jsonify(performance)

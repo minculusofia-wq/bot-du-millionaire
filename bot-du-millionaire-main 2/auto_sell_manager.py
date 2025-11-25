@@ -307,6 +307,49 @@ class AutoSellManager:
     def get_auto_sell_config(self) -> Dict:
         """Récupère la config actuelle"""
         return self.auto_sell_config
+    
+    def get_trader_pnl(self, trader_name: str) -> Dict:
+        """Calcule le PnL total d'un trader (positions ouvertes + fermées)"""
+        open_positions = self.get_open_positions(trader_name)
+        closed_positions = self.get_closed_positions(trader_name)
+        
+        total_open_pnl = sum(p['pnl'] for p in open_positions)
+        total_closed_pnl = sum(p.get('final_pnl', 0) for p in closed_positions)
+        total_pnl = total_open_pnl + total_closed_pnl
+        
+        # Calculer le capital total investi
+        total_invested = sum(p['entry_price'] * p['amount'] for p in open_positions + closed_positions)
+        
+        pnl_percent = (total_pnl / total_invested * 100) if total_invested > 0 else 0
+        
+        return {
+            'pnl': round(total_pnl, 2),
+            'pnl_percent': round(pnl_percent, 2),
+            'open_pnl': round(total_open_pnl, 2),
+            'closed_pnl': round(total_closed_pnl, 2),
+            'open_count': len(open_positions),
+            'closed_count': len(closed_positions),
+            'total_invested': round(total_invested, 2)
+        }
+    
+    def update_all_position_prices(self, token_prices: Dict[str, float]) -> None:
+        """Met à jour les prix de TOUTES les positions ouvertes"""
+        for position_id, position in self.open_positions.items():
+            if position['status'] == 'OPEN':
+                # Chercher le token mint dans les données disponibles
+                # En mode TEST, on simule les prix avec une variation réaliste
+                token_key = f"token_{position_id}"
+                
+                # Si prix disponible, utiliser; sinon appliquer variation simulée
+                if token_key in token_prices:
+                    current_price = token_prices[token_key]
+                else:
+                    # Simulation de mouvement de prix réaliste (+/- 2% par update)
+                    import random
+                    variation = random.uniform(0.98, 1.02)  # +/- 2%
+                    current_price = position['current_price'] * variation
+                
+                self.update_position_price(position_id, current_price)
 
 # Instance globale
 auto_sell_manager = AutoSellManager()

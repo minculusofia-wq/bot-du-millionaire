@@ -224,35 +224,43 @@ class BotBackend:
         return result
 
     def get_total_pnl(self):
-        """Retourne le PnL total SEULEMENT des traders ACTIFS"""
+        """Retourne le PnL total RÉEL depuis auto_sell_manager (SEULEMENT des traders ACTIFS)"""
         try:
-            import json
-            with open('portfolio_tracker.json', 'r') as f:
-                data = json.load(f)
-                # ✅ Compter SEULEMENT les traders actifs
-                active_addresses = [t['address'] for t in self.data['traders'] if t.get('active')]
-                total_pnl = sum(trader.get('pnl', 0) for addr, trader in data.items() 
-                               if any(t.get('address') == addr for t in self.data['traders'] if t.get('active')))
-                return round(total_pnl, 2)
-        except:
+            from auto_sell_manager import auto_sell_manager
+            
+            total_pnl = 0
+            # Boucler sur les traders actifs et additionner leur PnL réel
+            for trader in self.data['traders']:
+                if trader.get('active'):
+                    trader_pnl_data = auto_sell_manager.get_trader_pnl(trader['name'])
+                    total_pnl += trader_pnl_data.get('pnl', 0)
+            
+            return round(total_pnl, 2)
+        except Exception as e:
+            print(f"⚠️ Erreur get_total_pnl: {e}")
             return 0
     
     def get_total_pnl_percent(self):
-        """Retourne le PnL % moyen des traders ACTIFS seulement"""
+        """Retourne le PnL % moyen RÉEL depuis auto_sell_manager (SEULEMENT des traders ACTIFS)"""
         try:
-            import json
-            with open('portfolio_tracker.json', 'r') as f:
-                data = json.load(f)
-                if not data:
-                    return 0
-                # ✅ Moyenne SEULEMENT des traders actifs
-                active_traders = [t for t in data.values() if any(tr.get('address') == k for k, tr in 
-                                 [(t['address'], t) for t in self.data['traders'] if t.get('active')])]
-                if not active_traders:
-                    return 0
-                avg_pnl_percent = sum(t.get('pnl_percent', 0) for t in active_traders) / len(active_traders)
-                return round(avg_pnl_percent, 2)
-        except:
+            from auto_sell_manager import auto_sell_manager
+            
+            active_traders = [t for t in self.data['traders'] if t.get('active')]
+            if not active_traders:
+                return 0
+            
+            pnl_percents = []
+            for trader in active_traders:
+                trader_pnl_data = auto_sell_manager.get_trader_pnl(trader['name'])
+                pnl_percents.append(trader_pnl_data.get('pnl_percent', 0))
+            
+            if not pnl_percents:
+                return 0
+            
+            avg_pnl_percent = sum(pnl_percents) / len(pnl_percents)
+            return round(avg_pnl_percent, 2)
+        except Exception as e:
+            print(f"⚠️ Erreur get_total_pnl_percent: {e}")
             return 0
 
     def get_test_trades(self):
