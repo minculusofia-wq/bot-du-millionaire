@@ -1096,10 +1096,14 @@ def api_status():
 
 @app.route('/api/traders_performance')
 def api_traders_performance():
-    """Retourne les performances réelles des traders"""
+    """Retourne les performances réelles des traders ACTIFS SEULEMENT"""
     performance = []
     
+    # ✅ Afficher SEULEMENT les traders actifs
     for trader in backend.data['traders']:
+        if not trader.get('active'):  # Sauter les traders inactifs
+            continue
+            
         perf = portfolio_tracker.get_trader_performance(trader['address'])
         performance.append({
             'trader': f"{trader['emoji']} {trader['name']}",

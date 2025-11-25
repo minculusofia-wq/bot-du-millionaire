@@ -224,25 +224,33 @@ class BotBackend:
         return result
 
     def get_total_pnl(self):
-        """Retourne le PnL total À PARTIR DES DONNÉES RÉELLES DES TRADERS"""
+        """Retourne le PnL total SEULEMENT des traders ACTIFS"""
         try:
             import json
             with open('portfolio_tracker.json', 'r') as f:
                 data = json.load(f)
-                total_pnl = sum(trader.get('pnl', 0) for trader in data.values())
+                # ✅ Compter SEULEMENT les traders actifs
+                active_addresses = [t['address'] for t in self.data['traders'] if t.get('active')]
+                total_pnl = sum(trader.get('pnl', 0) for addr, trader in data.items() 
+                               if any(t.get('address') == addr for t in self.data['traders'] if t.get('active')))
                 return round(total_pnl, 2)
         except:
             return 0
     
     def get_total_pnl_percent(self):
-        """Retourne le PnL % moyen"""
+        """Retourne le PnL % moyen des traders ACTIFS seulement"""
         try:
             import json
             with open('portfolio_tracker.json', 'r') as f:
                 data = json.load(f)
                 if not data:
                     return 0
-                avg_pnl_percent = sum(trader.get('pnl_percent', 0) for trader in data.values()) / len(data)
+                # ✅ Moyenne SEULEMENT des traders actifs
+                active_traders = [t for t in data.values() if any(tr.get('address') == k for k, tr in 
+                                 [(t['address'], t) for t in self.data['traders'] if t.get('active')])]
+                if not active_traders:
+                    return 0
+                avg_pnl_percent = sum(t.get('pnl_percent', 0) for t in active_traders) / len(active_traders)
                 return round(avg_pnl_percent, 2)
         except:
             return 0
