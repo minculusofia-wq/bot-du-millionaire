@@ -1019,6 +1019,7 @@ HTML_TEMPLATE = """
             fetch('/api/status').then(r => r.json()).then(status => {
                 document.getElementById('live_portfolio').textContent = '$' + status.portfolio;
                 document.getElementById('live_active_count').textContent = status.active_traders + '/3';
+                document.getElementById('total_capital_display').textContent = '$' + status.total_capital.toFixed(2);
                 
                 // ✅ METTRE À JOUR LE GRAPHIQUE PnL
                 chartData.push(status.portfolio);

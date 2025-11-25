@@ -227,7 +227,15 @@ class BotBackend:
         """Calcule la valeur du portefeuille = capital initial + PnL total"""
         # Calculer le PnL total depuis les positions réelles
         total_pnl = self.get_total_pnl()
-        initial_capital = self.data.get('total_capital', 1000)
+        
+        # En REAL mode: utiliser le solde réel du wallet
+        # En TEST mode: utiliser total_capital du config
+        mode = self.data.get('mode', 'TEST')
+        if mode == 'REAL':
+            initial_capital = self.get_wallet_balance_dynamic()
+        else:
+            initial_capital = self.data.get('total_capital', 1000)
+        
         result = round(initial_capital + total_pnl, 2)
         return result
 
