@@ -123,7 +123,22 @@ def start_tracking():
                         for trade in new_trades:
                             capital_alloc = trader.get('capital', 100)
                             if capital_alloc > 0:
-                                copy_trading_simulator.simulate_trade_for_trader(trader_name, trade, capital_alloc)
+                                # Simuler le trade
+                                result = copy_trading_simulator.simulate_trade_for_trader(trader_name, trade, capital_alloc)
+                                
+                                # Enregistrer la position dans auto_sell_manager si la simulation réussit
+                                if result.get('status') == 'success':
+                                    execution = result.get('execution', {})
+                                    out_amount = execution.get('out_amount_after_slippage', 0)
+                                    simulated_usd = execution.get('simulated_amount_usd', 0)
+                                    
+                                    # Calculer le prix d'entrée en USD par token
+                                    entry_price_usd = simulated_usd / out_amount if out_amount > 0 else 0
+                                    
+                                    # Ajouter la position à auto_sell_manager
+                                    if entry_price_usd > 0 and out_amount > 0:
+                                        auto_sell_manager.open_position(trader_name, entry_price_usd, out_amount)
+                                
                                 # Afficher le token reçu
                                 out_mint = trade.get('out_mint', '?')
                                 token_symbol = out_mint[-8:] if out_mint and len(out_mint) > 8 else out_mint
