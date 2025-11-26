@@ -80,9 +80,8 @@ ws_handler.init_app(app, socketio)
 # Afficher le statut de configuration au lancement
 import os
 helius_key = os.getenv('HELIUS_API_KEY')
-current_mode = backend.data.get('mode', 'TEST')  # Défaut TEST pour la sécurité
 print(f"{'='*60}")
-print(f"✅ BOT PRÊT À DÉMARRER (MODE {current_mode})")
+print(f"✅ BOT PRÊT À DÉMARRER")
 print(f"Helius API Key: {'✅ Configurée' if helius_key else '❌ NON configurée'}")
 print(f"Traders actifs: {sum(1 for t in backend.data.get('traders', []) if t.get('active'))}")
 print(f"Bot activé: {'✅ OUI' if backend.is_running else '❌ NON'}")
@@ -661,8 +660,7 @@ HTML_TEMPLATE = """
                         </select>
                     </div>
                     <button class="btn" onclick="saveTakeProfit()">💾 Sauvegarder TP & SL</button>
-                    <button class="btn" onclick="switchMode()">Basculer Mode TEST/REEL</button>
-                    
+
                     <div class="divider"></div>
                     <h3 class="section-title">🤖 Achat & Vente AUTOMATIQUE</h3>
                     <p style="color: #00E676; margin: 10px 0;"><strong>✅ AUTOMATIQUE = Le core du bot</strong></p>
@@ -1030,7 +1028,6 @@ HTML_TEMPLATE = """
         
         function toggleTrader(i) { fetch(`/api/toggle_trader/${i}`).then(() => updateUI()); }
         function updateSlippage(v) { fetch(`/api/update_params?slippage=${v}`).then(() => updateUI()); }
-        function switchMode() { fetch('/api/switch_mode').then(() => updateUI()); }
         function saveKey() { fetch('/api/save_key', {method:'POST', body:JSON.stringify({key:document.getElementById('priv_key').value}), headers:{'Content-Type':'application/json'}}).then(() => alert('Clé sauvegardée en mémoire')); }
         function disconnect() { fetch('/api/disconnect').then(() => { document.getElementById('priv_key').value = ''; updateUI(); }); }
         
@@ -2263,11 +2260,7 @@ def api_trade_history():
 
 if __name__ == '__main__':
     print("🚀 Lancement sur http://0.0.0.0:5000")
-    current_mode = backend.data.get('mode', 'TEST')
-    if current_mode == 'TEST':
-        print("📊 Mode TEST avec suivi de portefeuilles réels")
-    else:
-        print("⚠️ Mode REAL - Transactions réelles activées")
+    print("📊 Suivi de portefeuilles en temps réel")
     print("🔒 Phase 3 Security: Validation + Safety + Audit logging activés")
     print("🌐 WebSocket activé pour dashboard temps réel")
     socketio.run(app, debug=False, host='0.0.0.0', port=5000, use_reloader=False)
