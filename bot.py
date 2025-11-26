@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from flask import Flask, render_template_string, jsonify, request
 import webbrowser
 import json
@@ -25,6 +26,14 @@ def load_env_file():
             print(f"⚠️ Erreur lecture .env: {e}")
 
 load_env_file()
+
+# 🔒 Fonction utilitaire pour masquer les clés API dans les logs
+def mask_sensitive_data(data: str) -> str:
+    """Masque les clés API et données sensibles pour les logs"""
+    if not data or len(data) < 10:
+        return "***"
+    # Garder les 6 premiers et 4 derniers caractères
+    return f"{data[:6]}***{data[-4:]}"
 
 from bot_logic import BotBackend
 from portfolio_tracker import portfolio_tracker
@@ -61,6 +70,9 @@ print(f"Traders actifs: {sum(1 for t in backend.data.get('traders', []) if t.get
 print(f"Bot activé: {'✅ OUI' if backend.is_running else '❌ NON'}")
 print(f"{'='*60}")
 
+# 🔒 Mutex pour protéger l'accès à copied_trades_history (thread-safe)
+copied_trades_lock = threading.Lock()
+
 # Charger l'historique des trades copiés pour éviter les doublons
 copied_trades_history = {}
 try:
@@ -70,9 +82,10 @@ except (FileNotFoundError, json.JSONDecodeError):
     copied_trades_history = {}
 
 def save_copied_trades_history():
-    """Sauvegarde l'historique des trades copiés"""
-    with open('copied_trades_history.json', 'w') as f:
-        json.dump(copied_trades_history, f, indent=2)
+    """Sauvegarde l'historique des trades copiés (thread-safe)"""
+    with copied_trades_lock:
+        with open('copied_trades_history.json', 'w') as f:
+            json.dump(copied_trades_history, f, indent=2)
 
 # ⚡ WEBSOCKET CALLBACKS - Détection ultra-rapide des trades des traders
 def on_trader_transaction_detected(trade_event: Dict):
@@ -96,13 +109,14 @@ def on_trader_transaction_detected(trade_event: Dict):
         if not trader_obj or not trader_obj.get('active'):
             return
         
-        # Vérifier si déjà copié
+        # Vérifier si déjà copié (thread-safe)
         trader_key = f"{trader_name}_{signature}"
-        if trader_key in copied_trades_history:
-            return
-        
-        # Marquer comme copié
-        copied_trades_history[trader_key] = datetime.now().isoformat()
+        with copied_trades_lock:
+            if trader_key in copied_trades_history:
+                return
+
+            # Marquer comme copié
+            copied_trades_history[trader_key] = datetime.now().isoformat()
         save_copied_trades_history()
         
         # Récupérer les infos du trade via Helius (détail complet)
@@ -199,8 +213,11 @@ def start_tracking():
                         for trade in trades_me:
                             sig = trade.get('signature', '')
                             trader_key = f"{trader['name']}_{sig}"
-                            
-                            if trader_key not in copied_trades_history:
+
+                            with copied_trades_lock:
+                                already_copied = trader_key in copied_trades_history
+
+                            if not already_copied:
                                 print(f"🔄 Magic Eden fallback: Détection trade {trader['name']}")
                                 # Traiter le trade
                     except:
@@ -219,15 +236,16 @@ def start_tracking():
                         # Récupérer les DERNIERS trades seulement (limit 3 pour performance)
                         trades = copy_trading_simulator.get_trader_recent_trades(trader_addr, limit=3)
                         
-                        # Filtrer les trades déjà copiés
+                        # Filtrer les trades déjà copiés (thread-safe)
                         new_trades = []
-                        for trade in trades:
-                            trade_sig = trade.get('signature', '')
-                            trader_key = f"{trader_name}_{trade_sig}"
-                            
-                            if trader_key not in copied_trades_history:
-                                new_trades.append(trade)
-                                copied_trades_history[trader_key] = datetime.now().isoformat()
+                        with copied_trades_lock:
+                            for trade in trades:
+                                trade_sig = trade.get('signature', '')
+                                trader_key = f"{trader_name}_{trade_sig}"
+
+                                if trader_key not in copied_trades_history:
+                                    new_trades.append(trade)
+                                    copied_trades_history[trader_key] = datetime.now().isoformat()
                         
                         # Afficher le statut
                         if new_trades:

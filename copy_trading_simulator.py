@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Simulateur de Copy Trading Réel
 - Récupère les transactions VRAIES des traders via Helius API

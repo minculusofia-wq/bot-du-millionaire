@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Database Manager - SQLite pour persistance long-terme
 Gère le stockage des données de trading, portfolios, historiques

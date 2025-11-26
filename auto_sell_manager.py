@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Gestionnaire de vente automatique
 - Détecte AUTOMATIQUEMENT les ventes du trader

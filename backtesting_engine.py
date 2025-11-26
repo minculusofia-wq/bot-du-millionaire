@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Engine de Backtesting
 Teste les paramètres TP/SL sur l'historique des traders

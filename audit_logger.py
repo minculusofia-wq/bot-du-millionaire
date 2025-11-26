@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Audit Logger - Logging sécurisé et audit trail
 """

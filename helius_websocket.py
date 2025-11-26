@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Websocket Helius - Détection ULTRA-RAPIDE des transactions des traders
 Remplace le polling par un listener temps réel (~200ms latence)

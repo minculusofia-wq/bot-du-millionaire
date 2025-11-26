@@ -68,7 +68,9 @@ for trader in traders:
     # Récupérer les transactions
     try:
         url = f"https://api-mainnet.helius-rpc.com/v0/addresses/{address}/transactions/?api-key={helius_key}"
-        print(f"   → Appel API: {url[:80]}...")
+        # Masquer la clé API dans les logs
+        url_masked = url.replace(helius_key, f"{helius_key[:6]}***{helius_key[-4:]}")
+        print(f"   → Appel API: {url_masked[:90]}...")
         
         response = requests.get(url, timeout=10)
         result = response.json()

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Gestion des DEX Solana (Raydium, Orca, Jupiter, etc)
 Construction et exécution des transactions de swap

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Monitoring & Statistics en temps réel
 Suivi des performances, métriques, alertes internes

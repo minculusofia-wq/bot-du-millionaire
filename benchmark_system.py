@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Système de Benchmark
 Compare les performances du bot vs chaque trader

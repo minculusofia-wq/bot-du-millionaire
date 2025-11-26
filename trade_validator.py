@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Validation des trades - Filtres de sécurité
 Vérification avant exécution des transactions

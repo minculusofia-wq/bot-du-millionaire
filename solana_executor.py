@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Exécution réelle des transactions Solana
 Signature et envoi des transactions vers la blockchain

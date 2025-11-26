@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Helius HTTP Polling - Détection FIABLE des transactions des traders
 Remplace le websocket instable par HTTP polling avec retry robuste

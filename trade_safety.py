@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Sécurité des trades - TP/SL, protection, gestion des risques
 """

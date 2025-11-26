@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Intégration Helius - Parser enrichi des transactions Solana
 Identifie automatiquement les swaps, DEX et montants

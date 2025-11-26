@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 WebSockets Handler
 Updates en temps réel du dashboard

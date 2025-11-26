@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Intégration Solana - Connexion réelle à la blockchain Solana
 Récupération des transactions et trades réels des traders
