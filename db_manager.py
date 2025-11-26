@@ -324,7 +324,48 @@ class DBManager:
         ''', (limit,))
         rows = c.fetchall()
         conn.close()
-        
+
         return [dict(row) for row in rows]
+
+    def get_closed_trades(self, trader_name: str = None) -> List[Dict]:
+        """
+        Récupère les trades fermés (avec PnL calculé)
+
+        Args:
+            trader_name: Nom du trader (optionnel, None = tous les traders)
+
+        Returns:
+            Liste des trades fermés avec leurs données
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+
+        if trader_name:
+            c.execute('''
+                SELECT * FROM simulated_trades
+                WHERE (status = 'CLOSED' OR exit_price_usd > 0)
+                  AND trader_name = ?
+                ORDER BY timestamp ASC
+            ''', (trader_name,))
+        else:
+            c.execute('''
+                SELECT * FROM simulated_trades
+                WHERE (status = 'CLOSED' OR exit_price_usd > 0)
+                ORDER BY timestamp ASC
+            ''')
+
+        rows = c.fetchall()
+        conn.close()
+
+        trades = []
+        for row in rows:
+            trade = dict(row)
+            # Ajouter opened_at et closed_at pour compatibilité
+            trade['opened_at'] = trade.get('timestamp', datetime.now().isoformat())
+            trade['closed_at'] = trade.get('timestamp', datetime.now().isoformat())
+            trades.append(trade)
+
+        return trades
 
 db_manager = DBManager()

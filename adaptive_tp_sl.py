@@ -302,6 +302,9 @@ global_volatility_analyzer = VolatilityAnalyzer()
 global_adaptive_calculator = AdaptiveTPSLCalculator()
 global_trailing_sl = TrailingStopLoss()
 
+# Alias pour compatibilité (utilise l'analyseur de volatilité par défaut)
+adaptive_tp_sl = global_volatility_analyzer
+
 
 if __name__ == "__main__":
     # Tests unitaires

@@ -272,6 +272,9 @@ def get_cached_wallet_balance(cache: CacheManager, wallet_address: str) -> Optio
 # Instance globale (singleton)
 global_cache = CacheManager(enable_redis=False)  # Redis désactivé par défaut
 
+# Alias pour compatibilité
+cache_manager = global_cache
+
 
 if __name__ == "__main__":
     # Tests unitaires
