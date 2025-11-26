@@ -25,7 +25,7 @@ class TradeValidator:
         # Limites par défaut
         self.min_trade_amount_usd = 1.0
         self.max_trade_amount_usd = 10000.0
-        self.max_slippage_bps = 500  # 5%
+        self.max_slippage_bps = 10000  # 100% (pour memecoins)
         self.max_trades_per_hour = 10
         self.max_concurrent_trades = 5
         

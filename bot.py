@@ -1797,7 +1797,7 @@ def api_set_trade_limits():
     trade_validator.set_limits(
         min_usd=float(data.get('min_usd', 1)),
         max_usd=float(data.get('max_usd', 10000)),
-        max_slippage_bps=int(data.get('max_slippage_bps', 500)),
+        max_slippage_bps=int(data.get('max_slippage_bps', 10000)),
         max_trades_per_hour=int(data.get('max_trades_per_hour', 10)),
         max_concurrent=int(data.get('max_concurrent', 5))
     )
