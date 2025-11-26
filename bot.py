@@ -49,6 +49,7 @@ from backtesting_engine import backtesting_engine
 from benchmark_system import benchmark_system
 from auto_sell_manager import auto_sell_manager
 from helius_polling import helius_polling
+from helius_websocket import helius_websocket
 from magic_eden_api import magic_eden_api
 from worker_threads import worker_pool
 from smart_strategy import smart_strategy
@@ -172,25 +173,55 @@ def subscribe_traders_to_polling():
     """Abonne les traders actifs au polling Helius pour détection fiable"""
     try:
         active_traders = [t for t in backend.data.get('traders', []) if t.get('active')]
-        
+
         if not active_traders:
             print("  └─ Aucun trader actif pour polling")
             return
-        
+
         for trader in active_traders:
             helius_polling.subscribe_to_trader(
                 trader['address'],
                 on_trader_transaction_detected
             )
-        
+
         print(f"  ├─ {len(active_traders)} traders HTTP polling configurés (5s interval, 90% fiable)")
     except Exception as e:
         print(f"  └─ Erreur abonnement polling: {e}")
 
+def subscribe_traders_to_websocket():
+    """Abonne les traders actifs au WebSocket Helius pour détection ultra-rapide"""
+    try:
+        active_traders = [t for t in backend.data.get('traders', []) if t.get('active')]
+
+        if not active_traders:
+            print("  └─ Aucun trader actif pour WebSocket")
+            return
+
+        for trader in active_traders:
+            helius_websocket.subscribe_to_trader(
+                trader['address'],
+                on_trader_transaction_detected
+            )
+
+        print(f"  ├─ {len(active_traders)} traders WebSocket configurés (~100-200ms latence)")
+    except Exception as e:
+        print(f"  └─ Erreur abonnement WebSocket: {e}")
+
 # Démarrer le thread de suivi des portefeuilles + simulation copy trading
 def start_tracking():
-    # Démarrer le polling Helius pour détection fiable
-    print("\n🚀 INITIALISATION POLLING HELIUS (FIABLE):")
+    # Démarrer le WebSocket Helius pour détection ultra-rapide
+    print("\n🚀 INITIALISATION WEBSOCKET HELIUS (ULTRA-RAPIDE ~100-200ms):")
+    try:
+        helius_websocket.start()
+        # Attendre 2 sec pour connexion WebSocket
+        time.sleep(2)
+        # Abonner les traders au WebSocket
+        subscribe_traders_to_websocket()
+    except Exception as e:
+        print(f"  └─ ⚠️ WebSocket non disponible: {e}")
+
+    # Démarrer le polling Helius pour détection fiable (backup)
+    print("\n🚀 INITIALISATION POLLING HELIUS (BACKUP):")
     try:
         helius_polling.start()
         # Attendre 1 sec
@@ -424,6 +455,7 @@ HTML_TEMPLATE = """
                     <div class="big-value" id="portfolio">$1000.00</div>
                     <p>Status: <span id="status" class="status off">BOT DÉSACTIVÉ</span></p>
                     <p>Mode: <span id="mode" class="mode-badge">TEST</span></p>
+                    <p>WebSocket Helius: <span id="websocket_status" class="status off">❌ Déconnecté</span></p>
                     <button class="btn" onclick="toggleBot()">Activer/Désactiver Bot</button>
                     
                     <!-- STATS DE TRADING -->
@@ -775,6 +807,16 @@ HTML_TEMPLATE = """
                 document.getElementById('active_count').textContent = data.active_traders + '/3';
                 document.getElementById('slippage_val').textContent = data.slippage;
                 document.getElementById('active_traders_count').textContent = data.active_traders;
+
+                // Statut WebSocket Helius
+                if (data.websocket_helius) {
+                    const wsStatus = document.getElementById('websocket_status');
+                    const isActive = data.websocket_helius.active && data.websocket_helius.connected;
+                    wsStatus.textContent = isActive
+                        ? `✅ Connecté (${data.websocket_helius.subscriptions} traders)`
+                        : '❌ Déconnecté';
+                    wsStatus.className = isActive ? 'status on' : 'status off';
+                }
                 
                 // ✅ CORRIGER: Afficher le nombre RÉEL de trades, pas les traders actifs
                 fetch('/api/trade_history').then(r => r.json()).then(history => {
@@ -1343,7 +1385,14 @@ def api_status():
         total_capital = backend.get_wallet_balance_dynamic()
     else:
         total_capital = backend.data.get('total_capital', 1000)
-    
+
+    # Statut du WebSocket Helius
+    websocket_status = {
+        'active': helius_websocket.is_running,
+        'subscriptions': len(helius_websocket.subscriptions),
+        'connected': helius_websocket.websocket is not None
+    }
+
     return jsonify({
         'portfolio': backend.get_portfolio_value(),
         'pnl_total': backend.get_total_pnl(),
@@ -1354,7 +1403,8 @@ def api_status():
         'traders': backend.data['traders'],
         'slippage': backend.data.get('slippage', 1.0),
         'currency': backend.data.get('currency', 'USD'),
-        'total_capital': total_capital
+        'total_capital': total_capital,
+        'websocket_helius': websocket_status
     })
 
 @app.route('/api/traders_performance')
