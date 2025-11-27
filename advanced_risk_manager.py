@@ -6,32 +6,79 @@ Inclut circuit breaker, Kelly criterion, position sizing intelligent
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from db_manager import db_manager
+import json
+import os
 
 
 class AdvancedRiskManager:
     """Gestionnaire de risque avancé avec circuit breaker"""
 
-    def __init__(self, total_capital: float = 1000):
+    # Valeurs par défaut (utilisées si pas de sauvegarde)
+    DEFAULT_PARAMS = {
+        'circuit_breaker_threshold': 15,  # 15%
+        'circuit_breaker_cooldown': 3600,  # 1 heure
+        'max_consecutive_losses': 5,
+        'max_position_size_percent': 20,  # 20%
+        'max_daily_loss_percent': 10,  # 10%
+        'max_drawdown_percent': 25,  # 25%
+        'kelly_safety_factor': 0.5,  # Demi-Kelly
+        'save_params': False  # Pas de sauvegarde par défaut
+    }
+
+    def __init__(self, total_capital: float = 1000, config_path: str = 'config.json'):
         self.total_capital = total_capital
         self.current_balance = total_capital
         self.peak_balance = total_capital
+        self.config_path = config_path
+
+        # Charger les paramètres (depuis config.json si sauvegarde activée, sinon défaut)
+        params = self._load_params()
 
         # Circuit Breaker Configuration
         self.circuit_breaker_active = False
-        self.circuit_breaker_threshold = 0.15  # 15% de perte
-        self.circuit_breaker_cooldown = 3600  # 1 heure en secondes
+        self.circuit_breaker_threshold = params['circuit_breaker_threshold'] / 100  # Convertir en fraction
+        self.circuit_breaker_cooldown = params['circuit_breaker_cooldown']
         self.circuit_breaker_triggered_at = None
 
         # Risk Limits
-        self.max_position_size_percent = 0.2  # Max 20% du capital par position
-        self.max_daily_loss_percent = 0.1  # Max 10% de perte par jour
-        self.max_drawdown_percent = 0.25  # Max 25% de drawdown
+        self.max_position_size_percent = params['max_position_size_percent'] / 100
+        self.max_daily_loss_percent = params['max_daily_loss_percent'] / 100
+        self.max_drawdown_percent = params['max_drawdown_percent'] / 100
+
+        # Kelly Criterion
+        self.kelly_safety_factor = params['kelly_safety_factor']
 
         # Tracking
         self.daily_pnl = 0
         self.daily_reset_time = datetime.now()
         self.consecutive_losses = 0
-        self.max_consecutive_losses = 5  # Circuit breaker après 5 pertes consécutives
+        self.max_consecutive_losses = params['max_consecutive_losses']
+
+        # Sauvegarde activée ou non
+        self.save_params_enabled = params['save_params']
+
+        print(f"🛡️ Risk Manager initialisé (Sauvegarde: {'✅' if self.save_params_enabled else '❌'})")
+
+    def _load_params(self) -> Dict:
+        """
+        Charge les paramètres depuis config.json si sauvegarde activée,
+        sinon retourne les valeurs par défaut
+        """
+        try:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+                    # Vérifier si la section risk_manager existe et si save_params est True
+                    if 'risk_manager' in config and config['risk_manager'].get('save_params', False):
+                        print("✅ Chargement des paramètres Risk Manager depuis config.json")
+                        return config['risk_manager']
+        except Exception as e:
+            print(f"⚠️ Erreur chargement config Risk Manager: {e}")
+
+        # Retourner les valeurs par défaut
+        print("ℹ️ Utilisation des paramètres Risk Manager par défaut")
+        return self.DEFAULT_PARAMS.copy()
 
     def is_circuit_breaker_active(self) -> bool:
         """
@@ -211,6 +258,117 @@ class AdvancedRiskManager:
             'max_daily_loss_percent': self.max_daily_loss_percent * 100,
             'max_drawdown_percent': self.max_drawdown_percent * 100
         }
+
+    def get_params(self) -> Dict:
+        """
+        Retourne tous les paramètres configurables
+
+        Returns:
+            Dictionnaire avec tous les paramètres (en pourcentages/secondes)
+        """
+        return {
+            'circuit_breaker_threshold': self.circuit_breaker_threshold * 100,
+            'circuit_breaker_cooldown': self.circuit_breaker_cooldown,
+            'max_consecutive_losses': self.max_consecutive_losses,
+            'max_position_size_percent': self.max_position_size_percent * 100,
+            'max_daily_loss_percent': self.max_daily_loss_percent * 100,
+            'max_drawdown_percent': self.max_drawdown_percent * 100,
+            'kelly_safety_factor': self.kelly_safety_factor,
+            'save_params': self.save_params_enabled
+        }
+
+    def update_params(self, params: Dict) -> Dict:
+        """
+        Met à jour les paramètres du Risk Manager
+
+        Args:
+            params: Dictionnaire avec les nouveaux paramètres
+
+        Returns:
+            {'success': True/False, 'message': str}
+        """
+        try:
+            # Mettre à jour les paramètres en mémoire
+            if 'circuit_breaker_threshold' in params:
+                self.circuit_breaker_threshold = float(params['circuit_breaker_threshold']) / 100
+
+            if 'circuit_breaker_cooldown' in params:
+                self.circuit_breaker_cooldown = int(params['circuit_breaker_cooldown'])
+
+            if 'max_consecutive_losses' in params:
+                self.max_consecutive_losses = int(params['max_consecutive_losses'])
+
+            if 'max_position_size_percent' in params:
+                self.max_position_size_percent = float(params['max_position_size_percent']) / 100
+
+            if 'max_daily_loss_percent' in params:
+                self.max_daily_loss_percent = float(params['max_daily_loss_percent']) / 100
+
+            if 'max_drawdown_percent' in params:
+                self.max_drawdown_percent = float(params['max_drawdown_percent']) / 100
+
+            if 'kelly_safety_factor' in params:
+                self.kelly_safety_factor = float(params['kelly_safety_factor'])
+
+            if 'save_params' in params:
+                self.save_params_enabled = bool(params['save_params'])
+
+            # Sauvegarder dans config.json si activé
+            if self.save_params_enabled:
+                self._save_to_config()
+                print("✅ Paramètres Risk Manager sauvegardés dans config.json")
+            else:
+                print("ℹ️ Paramètres Risk Manager mis à jour (mémoire uniquement)")
+
+            return {
+                'success': True,
+                'message': 'Paramètres mis à jour avec succès',
+                'saved_to_disk': self.save_params_enabled
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f'Erreur: {str(e)}'
+            }
+
+    def _save_to_config(self):
+        """Sauvegarde les paramètres dans config.json"""
+        try:
+            # Charger config existante
+            config = {}
+            if os.path.exists(self.config_path):
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+            # Mettre à jour la section risk_manager
+            config['risk_manager'] = {
+                'circuit_breaker_threshold': self.circuit_breaker_threshold * 100,
+                'circuit_breaker_cooldown': self.circuit_breaker_cooldown,
+                'max_consecutive_losses': self.max_consecutive_losses,
+                'max_position_size_percent': self.max_position_size_percent * 100,
+                'max_daily_loss_percent': self.max_daily_loss_percent * 100,
+                'max_drawdown_percent': self.max_drawdown_percent * 100,
+                'kelly_safety_factor': self.kelly_safety_factor,
+                'save_params': self.save_params_enabled
+            }
+
+            # Sauvegarder
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+
+        except Exception as e:
+            print(f"❌ Erreur sauvegarde config: {e}")
+
+    def reset_to_defaults(self) -> Dict:
+        """
+        Réinitialise tous les paramètres aux valeurs par défaut
+
+        Returns:
+            {'success': True, 'message': str}
+        """
+        defaults = self.DEFAULT_PARAMS.copy()
+        return self.update_params(defaults)
 
 
 # Instance globale

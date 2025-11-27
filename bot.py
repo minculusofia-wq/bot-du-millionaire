@@ -436,6 +436,7 @@ HTML_TEMPLATE = """
             <button class="nav-btn" onclick="showSection('positions')">📊 Positions Ouvertes</button>
             <button class="nav-btn" onclick="showSection('backtesting')">🎮 Backtesting</button>
             <button class="nav-btn" onclick="showSection('benchmark')">🏆 Benchmark</button>
+            <button class="nav-btn" onclick="showSection('risk_manager')">🛡️ Risk Manager</button>
             <button class="nav-btn" onclick="showSection('settings')">Paramètres & Sécurité</button>
             <button class="nav-btn" onclick="showSection('history')">Historique Complet</button>
         </div>
@@ -726,6 +727,117 @@ HTML_TEMPLATE = """
                     <thead><tr><th>Heure</th><th>Trader</th><th>Plateforme</th><th>Signature</th><th>PnL</th><th>Performance</th></tr></thead>
                     <tbody id="trades_body"></tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- RISK MANAGER -->
+        <div id="risk_manager" class="section">
+            <div class="card">
+                <h2>🛡️ Risk Manager - Gestion du Risque</h2>
+
+                <!-- Métriques actuelles -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                    <div class="stat-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <div class="stat-label">Balance Actuelle</div>
+                        <div class="stat-value" id="risk_current_balance">$1000</div>
+                    </div>
+                    <div class="stat-box" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        <div class="stat-label">Drawdown</div>
+                        <div class="stat-value" id="risk_drawdown">0%</div>
+                    </div>
+                    <div class="stat-box" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        <div class="stat-label">PnL Journalier</div>
+                        <div class="stat-value" id="risk_daily_pnl">$0</div>
+                    </div>
+                    <div class="stat-box" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                        <div class="stat-label">Pertes Consécutives</div>
+                        <div class="stat-value" id="risk_consecutive_losses">0</div>
+                    </div>
+                </div>
+
+                <!-- Alert Circuit Breaker -->
+                <div id="circuit_breaker_alert" style="display: none; background: #ff5252; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                    <strong>🚨 CIRCUIT BREAKER ACTIVÉ 🚨</strong>
+                    <p style="margin: 10px 0;">Le trading est automatiquement suspendu</p>
+                    <button class="btn" onclick="resetCircuitBreaker()" style="background: #fff; color: #ff5252;">Réinitialiser Manuellement</button>
+                </div>
+
+                <!-- Sauvegarde Toggle -->
+                <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="save_params_toggle" onchange="toggleSaveParams()" style="margin-right: 10px; width: 20px; height: 20px;">
+                        <span style="font-size: 16px;">💾 Sauvegarder les paramètres dans config.json (persistant entre sessions)</span>
+                    </label>
+                    <p style="color: #999; font-size: 13px; margin: 10px 0 0 30px;">
+                        ✅ Activé: Les paramètres sont sauvegardés et rechargés au prochain démarrage<br>
+                        ❌ Désactivé: Les paramètres reviennent aux valeurs par défaut à chaque session
+                    </p>
+                </div>
+
+                <!-- Formulaire de paramètres -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <!-- Colonne 1: Circuit Breaker -->
+                    <div style="background: #2a2a2a; padding: 20px; border-radius: 8px;">
+                        <h3 style="color: #64B5F6; margin-bottom: 15px;">⚡ Circuit Breaker</h3>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Seuil de déclenchement (%)
+                            <input type="number" id="circuit_breaker_threshold" value="15" min="1" max="100" step="0.5" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">Perte max avant arrêt automatique</span>
+                        </label>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Cooldown (secondes)
+                            <input type="number" id="circuit_breaker_cooldown" value="3600" min="60" max="86400" step="60" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">Durée de pause après activation</span>
+                        </label>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Pertes consécutives max
+                            <input type="number" id="max_consecutive_losses" value="5" min="1" max="20" step="1" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">Nombre de trades perdants avant arrêt</span>
+                        </label>
+                    </div>
+
+                    <!-- Colonne 2: Limites de risque -->
+                    <div style="background: #2a2a2a; padding: 20px; border-radius: 8px;">
+                        <h3 style="color: #64B5F6; margin-bottom: 15px;">🎯 Limites de Risque</h3>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Max position par trade (%)
+                            <input type="number" id="max_position_size_percent" value="20" min="1" max="100" step="1" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">% max du capital par position</span>
+                        </label>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Perte journalière max (%)
+                            <input type="number" id="max_daily_loss_percent" value="10" min="1" max="50" step="1" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">Perte max par jour</span>
+                        </label>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Drawdown maximum (%)
+                            <input type="number" id="max_drawdown_percent" value="25" min="1" max="100" step="1" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">Perte max depuis le pic</span>
+                        </label>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Kelly Safety Factor
+                            <input type="number" id="kelly_safety_factor" value="0.5" min="0.1" max="1" step="0.1" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">Facteur de sécurité Kelly (0.5 = demi-Kelly)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Boutons d'action -->
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="btn" onclick="saveRiskParams()" style="flex: 1; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        💾 Sauvegarder les Paramètres
+                    </button>
+                    <button class="btn" onclick="resetRiskDefaults()" style="flex: 1; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        🔄 Réinitialiser aux Défauts
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -1526,10 +1638,151 @@ HTML_TEMPLATE = """
         setInterval(updateAdvancedMetrics, 3000); // Update every 3 seconds
         updateAdvancedMetrics();
 
+        // 🛡️ Risk Manager: Initialize
+        loadRiskParams();
+        setInterval(updateRiskMetrics, 2000); // Update every 2 seconds
+        updateRiskMetrics();
+
         // 🎯 Test toast notification on load
         setTimeout(() => {
             showNotification('Dashboard Phase 9 activé! Charts interactifs et métriques avancées disponibles.', 'success');
         }, 1000);
+
+        // ==================== RISK MANAGER FUNCTIONS ====================
+
+        async function loadRiskParams() {
+            try {
+                const response = await fetch('/api/risk_manager/params');
+                const data = await response.json();
+                if (data.success) {
+                    const params = data.params;
+                    document.getElementById('circuit_breaker_threshold').value = params.circuit_breaker_threshold;
+                    document.getElementById('circuit_breaker_cooldown').value = params.circuit_breaker_cooldown;
+                    document.getElementById('max_consecutive_losses').value = params.max_consecutive_losses;
+                    document.getElementById('max_position_size_percent').value = params.max_position_size_percent;
+                    document.getElementById('max_daily_loss_percent').value = params.max_daily_loss_percent;
+                    document.getElementById('max_drawdown_percent').value = params.max_drawdown_percent;
+                    document.getElementById('kelly_safety_factor').value = params.kelly_safety_factor;
+                    document.getElementById('save_params_toggle').checked = params.save_params;
+                }
+            } catch (error) {
+                console.error('Erreur chargement params Risk Manager:', error);
+            }
+        }
+
+        async function saveRiskParams() {
+            const params = {
+                circuit_breaker_threshold: parseFloat(document.getElementById('circuit_breaker_threshold').value),
+                circuit_breaker_cooldown: parseInt(document.getElementById('circuit_breaker_cooldown').value),
+                max_consecutive_losses: parseInt(document.getElementById('max_consecutive_losses').value),
+                max_position_size_percent: parseFloat(document.getElementById('max_position_size_percent').value),
+                max_daily_loss_percent: parseFloat(document.getElementById('max_daily_loss_percent').value),
+                max_drawdown_percent: parseFloat(document.getElementById('max_drawdown_percent').value),
+                kelly_safety_factor: parseFloat(document.getElementById('kelly_safety_factor').value),
+                save_params: document.getElementById('save_params_toggle').checked
+            };
+
+            try {
+                const response = await fetch('/api/risk_manager/params', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(params)
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    const msg = data.saved_to_disk
+                        ? '✅ Paramètres sauvegardés dans config.json (persistants)'
+                        : '✅ Paramètres mis à jour (mémoire uniquement)';
+                    showNotification(msg, 'success');
+                } else {
+                    showNotification('❌ Erreur: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showNotification('❌ Erreur lors de la sauvegarde', 'error');
+                console.error(error);
+            }
+        }
+
+        async function resetRiskDefaults() {
+            if (!confirm('Réinitialiser tous les paramètres aux valeurs par défaut ?')) return;
+
+            try {
+                const response = await fetch('/api/risk_manager/reset_defaults', {method: 'POST'});
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification('✅ Paramètres réinitialisés aux défauts', 'success');
+                    await loadRiskParams();
+                } else {
+                    showNotification('❌ Erreur: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showNotification('❌ Erreur lors de la réinitialisation', 'error');
+                console.error(error);
+            }
+        }
+
+        async function resetCircuitBreaker() {
+            try {
+                const response = await fetch('/api/risk_manager/reset_circuit_breaker', {method: 'POST'});
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification('✅ Circuit Breaker réinitialisé', 'success');
+                    await updateRiskMetrics();
+                } else {
+                    showNotification('❌ Erreur: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showNotification('❌ Erreur lors de la réinitialisation du circuit breaker', 'error');
+                console.error(error);
+            }
+        }
+
+        async function toggleSaveParams() {
+            await saveRiskParams();
+        }
+
+        async function updateRiskMetrics() {
+            try {
+                const response = await fetch('/api/risk_manager/metrics');
+                const data = await response.json();
+
+                if (data.success) {
+                    const metrics = data.metrics;
+
+                    // Update metrics display
+                    document.getElementById('risk_current_balance').textContent = '$' + metrics.current_balance.toFixed(2);
+                    document.getElementById('risk_drawdown').textContent = metrics.drawdown_percent.toFixed(2) + '%';
+                    document.getElementById('risk_daily_pnl').textContent = '$' + metrics.daily_pnl.toFixed(2);
+                    document.getElementById('risk_consecutive_losses').textContent = metrics.consecutive_losses;
+
+                    // Show/hide circuit breaker alert
+                    const alert = document.getElementById('circuit_breaker_alert');
+                    if (metrics.circuit_breaker_active) {
+                        alert.style.display = 'block';
+                    } else {
+                        alert.style.display = 'none';
+                    }
+
+                    // Color coding
+                    const drawdownEl = document.getElementById('risk_drawdown');
+                    if (metrics.drawdown_percent > 15) {
+                        drawdownEl.style.color = '#ff5252';
+                    } else if (metrics.drawdown_percent > 10) {
+                        drawdownEl.style.color = '#ffa726';
+                    } else {
+                        drawdownEl.style.color = '#66bb6a';
+                    }
+
+                    const pnlEl = document.getElementById('risk_daily_pnl');
+                    pnlEl.style.color = metrics.daily_pnl >= 0 ? '#66bb6a' : '#ff5252';
+                }
+            } catch (error) {
+                console.error('Erreur update risk metrics:', error);
+            }
+        }
     </script>
 </body>
 </html>
@@ -2278,6 +2531,86 @@ def api_trade_history():
     
     trades.sort(key=lambda x: x.get('time', ''), reverse=True)
     return jsonify({'trades': trades[:50]})
+
+
+# ==================== RISK MANAGER ROUTES ====================
+
+@app.route('/api/risk_manager/params', methods=['GET'])
+def api_get_risk_params():
+    """Retourne les paramètres actuels du Risk Manager"""
+    try:
+        params = risk_manager.get_params()
+        return jsonify({
+            'success': True,
+            'params': params
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/risk_manager/params', methods=['POST'])
+def api_update_risk_params():
+    """Met à jour les paramètres du Risk Manager"""
+    try:
+        data = request.get_json()
+        result = risk_manager.update_params(data)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/risk_manager/metrics', methods=['GET'])
+def api_get_risk_metrics():
+    """Retourne les métriques de risque actuelles"""
+    try:
+        metrics = risk_manager.get_risk_metrics()
+        return jsonify({
+            'success': True,
+            'metrics': metrics
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/risk_manager/reset_defaults', methods=['POST'])
+def api_reset_risk_defaults():
+    """Réinitialise les paramètres aux valeurs par défaut"""
+    try:
+        result = risk_manager.reset_to_defaults()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/risk_manager/reset_circuit_breaker', methods=['POST'])
+def api_reset_circuit_breaker():
+    """Réinitialise manuellement le circuit breaker"""
+    try:
+        risk_manager.circuit_breaker_active = False
+        risk_manager.circuit_breaker_triggered_at = None
+        risk_manager.consecutive_losses = 0
+        print("✅ Circuit breaker réinitialisé manuellement")
+        return jsonify({
+            'success': True,
+            'message': 'Circuit breaker réinitialisé'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     print("🚀 Lancement sur http://0.0.0.0:5000")
