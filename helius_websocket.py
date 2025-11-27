@@ -36,23 +36,30 @@ class HeliosWebsocketListener:
         self.subscriptions = {}  # {trader_address: callback_func}
         self.is_running = False
         self.websocket = None
-        self.reconnect_delay = 5
-        self.max_retries = 10  # ✨ Augmenté de 5 à 10
+        self.reconnect_delay = 3  # ✨ Réduit de 5s à 3s pour reconnexion plus rapide
+        self.max_retries = 999  # ✨ Reconnexion infinie (était 10)
         self.url_index = 0  # Track which URL we're trying
 
-        # ✨ NOUVEAU: Heartbeat pour maintenir la connexion
+        # ✨ AMÉLIORÉ: Heartbeat plus fréquent
         self.last_heartbeat = time.time()
-        self.heartbeat_interval = 30  # Ping toutes les 30s
-        self.heartbeat_timeout = 60  # Timeout si pas de pong après 60s
+        self.last_message_received = time.time()  # ✨ NOUVEAU: Track dernier message
+        self.heartbeat_interval = 20  # ✨ Réduit de 30s à 20s pour détection plus rapide
+        self.heartbeat_timeout = 45  # ✨ Réduit de 60s à 45s
+        self.connection_timeout = 90  # ✨ NOUVEAU: Timeout global si pas de message depuis 90s
 
         # ✨ NOUVEAU: Buffer d'événements pendant la reconnexion
         self.event_buffer = deque(maxlen=100)  # Garder max 100 événements
         self.is_connected = False
 
-        # ✨ NOUVEAU: Stats de connexion
+        # ✨ AMÉLIORÉ: Stats de connexion avec plus de détails
         self.connection_quality = 100  # 0-100%
         self.total_reconnects = 0
+        self.successful_reconnects = 0  # ✨ NOUVEAU: Reconnexions réussies
+        self.failed_reconnects = 0  # ✨ NOUVEAU: Reconnexions échouées
         self.last_reconnect_time = None
+        self.connection_start_time = None  # ✨ NOUVEAU: Quand la connexion actuelle a commencé
+        self.total_messages_received = 0  # ✨ NOUVEAU: Total messages reçus
+        self.consecutive_errors = 0  # ✨ NOUVEAU: Erreurs consécutives
 
         if not self.api_key:
             print("⚠️ HELIUS_API_KEY non définie - websocket Helius désactivé")
@@ -69,41 +76,92 @@ class HeliosWebsocketListener:
             print(f"❌ Désabonné de {trader_address[:10]}...")
 
     async def _send_heartbeat(self, websocket):
-        """✨ NOUVEAU: Envoie un ping périodique pour maintenir la connexion"""
+        """✨ AMÉLIORÉ: Envoie un ping périodique + détection timeout connexion"""
         try:
             while self.is_connected and self.is_running:
                 await asyncio.sleep(self.heartbeat_interval)
+
                 if websocket and not websocket.closed:
+                    # ✨ NOUVEAU: Vérifier timeout global
+                    time_since_last_message = time.time() - self.last_message_received
+                    if time_since_last_message > self.connection_timeout:
+                        print(f"⚠️ Connection timeout: Pas de message depuis {int(time_since_last_message)}s")
+                        self.connection_quality = 0
+                        # Forcer reconnexion en fermant le websocket
+                        try:
+                            await websocket.close()
+                        except:
+                            pass
+                        break
+
                     try:
                         # Envoyer un ping
                         pong = await websocket.ping()
                         await asyncio.wait_for(pong, timeout=5)
                         self.last_heartbeat = time.time()
                         self.connection_quality = min(100, self.connection_quality + 5)
+                        self.consecutive_errors = 0  # ✨ NOUVEAU: Reset compteur erreurs
+                        print(f"💓 Heartbeat OK (qualité: {self.connection_quality}%)")
                     except asyncio.TimeoutError:
-                        print("⚠️ Heartbeat timeout - connexion faible")
+                        self.consecutive_errors += 1
+                        print(f"⚠️ Heartbeat timeout #{self.consecutive_errors} - connexion faible")
                         self.connection_quality = max(0, self.connection_quality - 20)
+
+                        # ✨ NOUVEAU: Forcer reconnexion après 3 timeouts consécutifs
+                        if self.consecutive_errors >= 3:
+                            print("❌ Trop de timeouts consécutifs - forçage reconnexion")
+                            try:
+                                await websocket.close()
+                            except:
+                                pass
+                            break
                     except Exception as e:
-                        print(f"⚠️ Heartbeat error: {e}")
+                        self.consecutive_errors += 1
+                        print(f"⚠️ Heartbeat error #{self.consecutive_errors}: {e}")
                         self.connection_quality = max(0, self.connection_quality - 10)
         except Exception as e:
             print(f"⚠️ Heartbeat loop error: {e}")
 
     def _calculate_backoff_delay(self, retry_count: int) -> float:
-        """✨ NOUVEAU: Calcule le délai avec backoff exponentiel"""
-        # Backoff exponentiel: 2^retry * base_delay, max 60s
-        delay = min(60, (2 ** retry_count) * 2)
-        return delay
+        """✨ AMÉLIORÉ: Calcule le délai avec backoff exponentiel intelligent"""
+        # Backoff exponentiel optimisé:
+        # - Retry 1-3: 3s, 6s, 12s (reconnexion rapide)
+        # - Retry 4-6: 24s, 30s, 30s (stabilisation)
+        # - Retry 7+: 30s max (évite attentes trop longues)
+        if retry_count <= 3:
+            delay = min(30, (2 ** retry_count) * 1.5)
+        else:
+            delay = 30  # Max 30s pour les reconnexions suivantes
+
+        # ✨ NOUVEAU: Ajouter jitter aléatoire (±20%) pour éviter synchronisation
+        import random
+        jitter = delay * 0.2 * (random.random() - 0.5)
+        final_delay = delay + jitter
+
+        return max(1, final_delay)  # Minimum 1s
 
     def get_connection_stats(self) -> Dict:
-        """✨ NOUVEAU: Retourne les stats de connexion"""
+        """✨ AMÉLIORÉ: Retourne les stats de connexion détaillées"""
+        uptime = None
+        if self.connection_start_time:
+            uptime = int(time.time() - self.connection_start_time)
+
+        time_since_last_msg = int(time.time() - self.last_message_received)
+
         return {
             'is_connected': self.is_connected,
             'connection_quality': self.connection_quality,
             'total_reconnects': self.total_reconnects,
+            'successful_reconnects': self.successful_reconnects,  # ✨ NOUVEAU
+            'failed_reconnects': self.failed_reconnects,  # ✨ NOUVEAU
             'last_reconnect': self.last_reconnect_time,
             'buffer_size': len(self.event_buffer),
-            'subscriptions': len(self.subscriptions)
+            'subscriptions': len(self.subscriptions),
+            'uptime_seconds': uptime,  # ✨ NOUVEAU
+            'total_messages': self.total_messages_received,  # ✨ NOUVEAU
+            'consecutive_errors': self.consecutive_errors,  # ✨ NOUVEAU
+            'time_since_last_message': time_since_last_msg,  # ✨ NOUVEAU
+            'current_url_index': self.url_index  # ✨ NOUVEAU
         }
     
     async def _connect_and_listen(self):
@@ -128,15 +186,21 @@ class HeliosWebsocketListener:
                 async with websockets.connect(
                     self.wss_url,
                     ssl=ssl_context,  # ✨ Ajouter le contexte SSL
-                    ping_interval=30,  # ✨ Ping automatique toutes les 30s
+                    ping_interval=20,  # ✨ AMÉLIORÉ: Ping automatique toutes les 20s (était 30s)
                     ping_timeout=10,   # ✨ Timeout de 10s pour pong
-                    close_timeout=10
+                    close_timeout=10,
+                    max_size=10485760  # ✨ NOUVEAU: 10MB max message size
                 ) as websocket:
                     self.websocket = websocket
                     self.is_connected = True  # ✨ NOUVEAU
+                    self.connection_start_time = time.time()  # ✨ NOUVEAU: Track uptime
+                    self.last_message_received = time.time()  # ✨ NOUVEAU: Reset timer
                     retry_count = 0  # Reset retry count on successful connection
+                    self.consecutive_errors = 0  # ✨ NOUVEAU: Reset erreurs
                     self.connection_quality = 100  # ✨ Reset quality
-                    print("✅ Websocket Helius connecté")
+                    self.successful_reconnects += 1  # ✨ NOUVEAU: Incrémenter succès
+                    print(f"✅ Websocket Helius connecté (URL {self.url_index + 1})")
+                    print(f"   Stats: {self.successful_reconnects} succès, {self.failed_reconnects} échecs")
 
                     # ✨ NOUVEAU: Traiter les événements buffered
                     if len(self.event_buffer) > 0:
@@ -175,6 +239,10 @@ class HeliosWebsocketListener:
                             if not self.is_running:
                                 break
 
+                            # ✨ NOUVEAU: Mettre à jour timestamp dernier message
+                            self.last_message_received = time.time()
+                            self.total_messages_received += 1
+
                             try:
                                 data = json.loads(message)
                                 await self._handle_notification(data)
@@ -192,18 +260,26 @@ class HeliosWebsocketListener:
             except Exception as e:
                 self.is_connected = False  # ✨ NOUVEAU
                 self.total_reconnects += 1  # ✨ NOUVEAU
+                self.failed_reconnects += 1  # ✨ NOUVEAU: Incrémenter échecs
                 self.last_reconnect_time = datetime.now().isoformat()  # ✨ NOUVEAU
                 retry_count += 1
 
-                # Essayer URL suivante après 2 tentatives
+                # ✨ AMÉLIORÉ: Failover automatique entre URLs
+                # - Après 2 échecs sur la même URL → essayer la suivante
+                # - Rotation complète des 3 URLs avant d'augmenter le backoff
                 if retry_count % 2 == 0:
-                    self.url_index += 1
+                    old_index = self.url_index
+                    self.url_index = (self.url_index + 1) % len(self.wss_urls)
+                    print(f"🔄 Failover: URL {old_index + 1} → URL {self.url_index + 1}")
 
                 if self.is_running:
-                    # ✨ NOUVEAU: Backoff exponentiel
+                    # ✨ AMÉLIORÉ: Backoff exponentiel intelligent
                     delay = self._calculate_backoff_delay(retry_count)
-                    print(f"⚠️ Erreur websocket (retry {retry_count}): {str(e)[:80]}")
-                    print(f"   Reconnexion dans {delay}s...")
+                    error_msg = str(e)[:100]
+                    print(f"⚠️ Erreur websocket (retry {retry_count}/{self.max_retries}): {error_msg}")
+                    print(f"   URL actuelle: {self.url_index + 1}/{len(self.wss_urls)}")
+                    print(f"   Reconnexion dans {delay:.1f}s...")
+                    print(f"   Stats: ✅ {self.successful_reconnects} succès | ❌ {self.failed_reconnects} échecs")
                     await asyncio.sleep(delay)
 
                 self.websocket = None
