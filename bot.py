@@ -1751,8 +1751,9 @@ HTML_TEMPLATE = """
         refreshHistory();
         
         // Rafraîchir le Backtesting toutes les 10 secondes
+        loadBacktestTraders();  // Appel immédiat
         setInterval(loadBacktestTraders, 10000);
-        
+
         // Rafraîchir le Benchmark toutes les 15 secondes
         setInterval(updateBenchmark, 15000);
         updateBenchmark();
