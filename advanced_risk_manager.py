@@ -371,5 +371,16 @@ class AdvancedRiskManager:
         return self.update_params(defaults)
 
 
-# Instance globale
-risk_manager = AdvancedRiskManager(total_capital=1000)
+# Instance globale - Capital chargé depuis config.json
+def _get_capital_from_config():
+    """Charge le capital total depuis config.json"""
+    try:
+        if os.path.exists('config.json'):
+            with open('config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                return config.get('total_capital', 1000)
+    except Exception as e:
+        print(f"⚠️ Erreur chargement capital: {e}")
+    return 1000  # Défaut si erreur
+
+risk_manager = AdvancedRiskManager(total_capital=_get_capital_from_config())
