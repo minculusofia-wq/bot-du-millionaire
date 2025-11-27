@@ -208,6 +208,17 @@ class AdvancedRiskManager:
             'current_balance': self.current_balance
         }
 
+    def sync_balance_from_wallet(self, wallet_balance: float):
+        """
+        Synchronise le balance depuis le wallet réel
+
+        Args:
+            wallet_balance: Balance réel du wallet Solana
+        """
+        self.current_balance = wallet_balance
+        if wallet_balance > self.peak_balance:
+            self.peak_balance = wallet_balance
+
     def update_balance(self, pnl: float):
         """
         Met à jour le balance et les métriques de risque

@@ -2569,6 +2569,11 @@ def api_update_risk_params():
 def api_get_risk_metrics():
     """Retourne les métriques de risque actuelles"""
     try:
+        # Synchroniser le balance depuis le wallet réel
+        wallet_balance = backend.get_wallet_balance_dynamic()
+        if wallet_balance > 0:
+            risk_manager.sync_balance_from_wallet(wallet_balance)
+
         metrics = risk_manager.get_risk_metrics()
         return jsonify({
             'success': True,
