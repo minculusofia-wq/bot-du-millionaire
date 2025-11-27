@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 Arbitrage Engine - Détection et exécution d'opportunités d'arbitrage multi-DEX
-✨ Phase 9 Optimization: Revenus passifs additionnels
+✨ Phase 10: Arbitrage complet avec interface de gestion
 
 Supporte: Raydium, Orca, Jupiter
 Détecte les écarts de prix entre DEX et exécute automatiquement
 """
 from typing import Dict, List, Tuple, Optional
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
+import json
+import os
 from cache_manager import cache_manager
 
 
@@ -19,11 +21,45 @@ class ArbitrageEngine:
     Supporte: Raydium, Orca, Jupiter
     """
 
-    def __init__(self):
-        self.dex_prices = {}
-        self.min_profit_threshold = 1.5  # 1.5% minimum pour être rentable (après frais)
+    # Valeurs par défaut
+    DEFAULT_CONFIG = {
+        'enabled': False,  # Arbitrage désactivé par défaut
+        'capital_dedicated': 100.0,  # Capital dédié à l'arbitrage (séparé du copy trading)
+        'percent_per_trade': 10.0,  # % du capital arbitrage par opportunité
+        'min_profit_threshold': 1.5,  # % minimum de profit net
+        'min_amount_per_trade': 10.0,  # Montant minimum par trade ($)
+        'max_amount_per_trade': 200.0,  # Montant maximum par trade ($)
+        'cooldown_seconds': 30,  # Secondes entre 2 arbitrages du même token
+        'max_concurrent_trades': 3,  # Max d'arbitrages simultanés
+        'blacklist_tokens': []  # Tokens à éviter
+    }
+
+    def __init__(self, config_path: str = 'config.json'):
+        self.config_path = config_path
+
+        # Charger la configuration
+        self.config = self._load_config()
+
+        # État
+        self.enabled = self.config['enabled']
+        self.capital_dedicated = self.config['capital_dedicated']
+        self.percent_per_trade = self.config['percent_per_trade']
+        self.min_profit_threshold = self.config['min_profit_threshold']
+        self.min_amount = self.config['min_amount_per_trade']
+        self.max_amount = self.config['max_amount_per_trade']
+        self.cooldown_seconds = self.config['cooldown_seconds']
+        self.max_concurrent = self.config['max_concurrent_trades']
+        self.blacklist = set(self.config['blacklist_tokens'])
+
+        # Statistiques
         self.opportunities_found = 0
         self.opportunities_executed = 0
+        self.total_profit = 0.0
+        self.win_count = 0
+        self.loss_count = 0
+        self.recent_opportunities = []  # Dernières 10 opportunités
+        self.active_trades = []  # Trades en cours
+        self.cooldown_tracker = {}  # {token: last_trade_time}
         self.last_update = None
 
         # URLs des APIs DEX
@@ -40,17 +76,130 @@ class ArbitrageEngine:
             'Orca': 0.30      # 0.30% swap fee
         }
 
+        print(f"💰 Arbitrage Engine initialisé")
+        print(f"   Statut: {'✅ ACTIVÉ' if self.enabled else '❌ DÉSACTIVÉ'}")
+        print(f"   Capital dédié: {self.capital_dedicated}$")
+        print(f"   % par trade: {self.percent_per_trade}%")
+
+    def _load_config(self) -> Dict:
+        """Charge la configuration depuis config.json"""
+        try:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+                    if 'arbitrage' in config:
+                        print("✅ Configuration arbitrage chargée depuis config.json")
+                        # Fusionner avec les valeurs par défaut
+                        loaded_config = self.DEFAULT_CONFIG.copy()
+                        loaded_config.update(config['arbitrage'])
+                        return loaded_config
+        except Exception as e:
+            print(f"⚠️ Erreur chargement config arbitrage: {e}")
+
+        print("ℹ️ Utilisation de la configuration arbitrage par défaut")
+        return self.DEFAULT_CONFIG.copy()
+
+    def save_config(self) -> bool:
+        """Sauvegarde la configuration dans config.json"""
+        try:
+            # Charger le config.json existant
+            config = {}
+            if os.path.exists(self.config_path):
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+            # Mettre à jour la section arbitrage
+            config['arbitrage'] = {
+                'enabled': self.enabled,
+                'capital_dedicated': self.capital_dedicated,
+                'percent_per_trade': self.percent_per_trade,
+                'min_profit_threshold': self.min_profit_threshold,
+                'min_amount_per_trade': self.min_amount,
+                'max_amount_per_trade': self.max_amount,
+                'cooldown_seconds': self.cooldown_seconds,
+                'max_concurrent_trades': self.max_concurrent,
+                'blacklist_tokens': list(self.blacklist)
+            }
+
+            # Sauvegarder
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+
+            print("✅ Configuration arbitrage sauvegardée")
+            return True
+        except Exception as e:
+            print(f"❌ Erreur sauvegarde config arbitrage: {e}")
+            return False
+
+    def update_config(self, params: Dict) -> Dict:
+        """Met à jour la configuration"""
+        try:
+            if 'enabled' in params:
+                self.enabled = bool(params['enabled'])
+            if 'capital_dedicated' in params:
+                self.capital_dedicated = float(params['capital_dedicated'])
+            if 'percent_per_trade' in params:
+                self.percent_per_trade = float(params['percent_per_trade'])
+            if 'min_profit_threshold' in params:
+                self.min_profit_threshold = float(params['min_profit_threshold'])
+            if 'min_amount_per_trade' in params:
+                self.min_amount = float(params['min_amount_per_trade'])
+            if 'max_amount_per_trade' in params:
+                self.max_amount = float(params['max_amount_per_trade'])
+            if 'cooldown_seconds' in params:
+                self.cooldown_seconds = int(params['cooldown_seconds'])
+            if 'max_concurrent_trades' in params:
+                self.max_concurrent = int(params['max_concurrent_trades'])
+            if 'blacklist_tokens' in params:
+                self.blacklist = set(params['blacklist_tokens'])
+
+            # Sauvegarder
+            self.save_config()
+
+            return {'success': True, 'message': 'Configuration mise à jour'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def get_config(self) -> Dict:
+        """Retourne la configuration actuelle"""
+        return {
+            'enabled': self.enabled,
+            'capital_dedicated': self.capital_dedicated,
+            'percent_per_trade': self.percent_per_trade,
+            'min_profit_threshold': self.min_profit_threshold,
+            'min_amount_per_trade': self.min_amount,
+            'max_amount_per_trade': self.max_amount,
+            'cooldown_seconds': self.cooldown_seconds,
+            'max_concurrent_trades': self.max_concurrent,
+            'blacklist_tokens': list(self.blacklist)
+        }
+
+    def is_in_cooldown(self, token_mint: str) -> bool:
+        """Vérifie si le token est en cooldown"""
+        if token_mint not in self.cooldown_tracker:
+            return False
+
+        last_trade = self.cooldown_tracker[token_mint]
+        elapsed = (datetime.now() - last_trade).total_seconds()
+        return elapsed < self.cooldown_seconds
+
+    def can_trade(self) -> Tuple[bool, str]:
+        """Vérifie si on peut trader (vérifications de sécurité)"""
+        if not self.enabled:
+            return False, "Arbitrage désactivé"
+
+        if len(self.active_trades) >= self.max_concurrent:
+            return False, f"Max trades simultanés atteint ({self.max_concurrent})"
+
+        if self.capital_dedicated <= 0:
+            return False, "Capital dédié insuffisant"
+
+        return True, "OK"
+
     def update_dex_prices(self, token_mint: str) -> Dict[str, float]:
-        """
-        Récupère les prix du token sur tous les DEX
-
-        Args:
-            token_mint: Adresse du token Solana
-
-        Returns:
-            {'Jupiter': 0.123, 'Raydium': 0.125, 'Orca': 0.124}
-        """
-        # Vérifier le cache (TTL: 10 secondes pour prix en temps réel)
+        """Récupère les prix du token sur tous les DEX"""
+        # Vérifier le cache
         cache_key = f"dex_prices_{token_mint}"
         cached_prices = cache_manager.get(cache_key, namespace="prices")
         if cached_prices is not None:
@@ -58,7 +207,7 @@ class ArbitrageEngine:
 
         prices = {}
 
-        # 1. Jupiter API (Price API v4)
+        # 1. Jupiter API
         try:
             response = requests.get(
                 f"{self.dex_apis['Jupiter']}?ids={token_mint}",
@@ -69,7 +218,7 @@ class ArbitrageEngine:
                 if 'data' in data and token_mint in data['data']:
                     prices['Jupiter'] = float(data['data'][token_mint]['price'])
         except Exception as e:
-            print(f"⚠️ Jupiter API erreur pour {token_mint[:8]}: {e}")
+            pass  # Silencieux
 
         # 2. Raydium API
         try:
@@ -79,7 +228,7 @@ class ArbitrageEngine:
                 if token_mint in data:
                     prices['Raydium'] = float(data[token_mint])
         except Exception as e:
-            print(f"⚠️ Raydium API erreur pour {token_mint[:8]}: {e}")
+            pass
 
         # 3. Orca API
         try:
@@ -93,79 +242,60 @@ class ArbitrageEngine:
                             prices['Orca'] = float(price)
                         break
         except Exception as e:
-            print(f"⚠️ Orca API erreur pour {token_mint[:8]}: {e}")
+            pass
 
-        # Mettre en cache (TTL: 10 secondes)
+        # Mettre en cache
         cache_manager.set(cache_key, prices, ttl=10, namespace="prices")
-
-        self.dex_prices[token_mint] = prices
         self.last_update = datetime.now()
 
         return prices
 
     def detect_arbitrage(self, token_mint: str) -> Dict:
-        """
-        Détecte les opportunités d'arbitrage
-
-        Args:
-            token_mint: Adresse du token
-
-        Returns:
-            {
-                'opportunity': True/False,
-                'profit_percent': 2.3,
-                'net_profit': 1.8,
-                'buy_dex': 'Raydium',
-                'buy_price': 0.123,
-                'buy_fee': 0.25,
-                'sell_dex': 'Jupiter',
-                'sell_price': 0.126,
-                'sell_fee': 0.25,
-                'timestamp': '2025-11-27T...'
+        """Détecte les opportunités d'arbitrage"""
+        # Vérifier blacklist
+        if token_mint in self.blacklist:
+            return {
+                'opportunity': False,
+                'reason': 'Token blacklisté',
+                'token_mint': token_mint
             }
-        """
-        # Mettre à jour les prix
+
+        # Vérifier cooldown
+        if self.is_in_cooldown(token_mint):
+            remaining = self.cooldown_seconds - (datetime.now() - self.cooldown_tracker[token_mint]).total_seconds()
+            return {
+                'opportunity': False,
+                'reason': f'Cooldown actif ({remaining:.0f}s restant)',
+                'token_mint': token_mint
+            }
+
+        # Récupérer les prix
         prices = self.update_dex_prices(token_mint)
 
         if len(prices) < 2:
             return {
                 'opportunity': False,
-                'profit_percent': 0,
-                'net_profit': 0,
                 'reason': 'Pas assez de DEX disponibles (minimum 2)',
-                'available_dex': list(prices.keys())
+                'token_mint': token_mint
             }
 
-        # Trouver le prix min (où acheter) et max (où vendre)
+        # Trouver le meilleur deal
         buy_dex = min(prices, key=prices.get)
         sell_dex = max(prices, key=prices.get)
         buy_price = prices[buy_dex]
         sell_price = prices[sell_dex]
 
-        # Calculer le profit brut (avant frais)
+        # Calculer le profit
         profit_percent = ((sell_price - buy_price) / buy_price) * 100
-
-        # Calculer les frais
         buy_fee = self.estimated_fees.get(buy_dex, 0.25)
         sell_fee = self.estimated_fees.get(sell_dex, 0.25)
         total_fees = buy_fee + sell_fee
-
-        # Profit net (après frais)
         net_profit = profit_percent - total_fees
 
-        # Y a-t-il une opportunité rentable ?
+        # Opportunité ?
         opportunity = net_profit >= self.min_profit_threshold
 
-        if opportunity:
-            self.opportunities_found += 1
-            print(f"\n💰 OPPORTUNITÉ D'ARBITRAGE DÉTECTÉE!")
-            print(f"Token: {token_mint[:8]}...")
-            print(f"📊 Acheter sur {buy_dex} à {buy_price:.6f} (frais: {buy_fee}%)")
-            print(f"📊 Vendre sur {sell_dex} à {sell_price:.6f} (frais: {sell_fee}%)")
-            print(f"💵 Profit BRUT: +{profit_percent:.2f}%")
-            print(f"💰 Profit NET: +{net_profit:.2f}%")
-
-        return {
+        result = {
             'opportunity': opportunity,
             'profit_percent': round(profit_percent, 2),
             'net_profit': round(net_profit, 2),
@@ -180,160 +310,94 @@ class ArbitrageEngine:
             'token_mint': token_mint
         }
 
-    def calculate_optimal_amount(self,
-                                capital: float,
-                                profit_percent: float,
-                                max_position: float = 0.2) -> float:
-        """
-        Calcule le montant optimal à trader
+        if opportunity:
+            self.opportunities_found += 1
+            # Ajouter aux récentes (max 10)
+            self.recent_opportunities.insert(0, result)
+            self.recent_opportunities = self.recent_opportunities[:10]
 
-        Args:
-            capital: Capital total disponible
-            profit_percent: Profit net attendu (%)
-            max_position: % maximum du capital (défaut 20%)
+            print(f"\n💰 OPPORTUNITÉ: {token_mint[:8]}... | {buy_dex} → {sell_dex} | +{net_profit:.2f}%")
 
-        Returns:
-            Montant optimal en USD
-        """
-        # Plus le profit est élevé, plus on peut trader
-        if profit_percent > 5:
-            position_percent = max_position  # 20%
-        elif profit_percent > 3:
-            position_percent = max_position * 0.75  # 15%
-        elif profit_percent > 2:
-            position_percent = max_position * 0.5  # 10%
+        return result
+
+    def calculate_trade_amount(self, opportunity: Dict) -> float:
+        """Calcule le montant optimal pour le trade"""
+        # Montant de base (% du capital dédié)
+        base_amount = (self.capital_dedicated * self.percent_per_trade) / 100
+
+        # Ajuster selon le profit (plus le profit est élevé, plus on trade)
+        net_profit = opportunity.get('net_profit', 0)
+        if net_profit > 5:
+            multiplier = 1.5
+        elif net_profit > 3:
+            multiplier = 1.2
         else:
-            position_percent = max_position * 0.25  # 5%
+            multiplier = 1.0
 
-        return round(capital * position_percent, 2)
+        amount = base_amount * multiplier
 
-    def calculate_arbitrage_amount(self, capital: float) -> float:
-        """
-        Alias pour calculate_optimal_amount (compatibilité)
+        # Appliquer les limites
+        amount = max(self.min_amount, min(amount, self.max_amount))
+        amount = min(amount, self.capital_dedicated)  # Ne pas dépasser le capital dédié
 
-        Args:
-            capital: Capital total
+        return round(amount, 2)
 
-        Returns:
-            Montant à utiliser (20% du capital par défaut)
-        """
-        return self.calculate_optimal_amount(capital, profit_percent=2.0)
+    def execute_arbitrage(self, opportunity: Dict, amount: float = None) -> Dict:
+        """Exécute l'arbitrage (MODE TEST uniquement pour le moment)"""
+        can_trade, reason = self.can_trade()
+        if not can_trade:
+            return {'success': False, 'error': reason}
 
-    def execute_arbitrage(self,
-                         opportunity: Dict,
-                         amount: float,
-                         mode: str = 'TEST') -> Dict:
-        """
-        Exécute l'arbitrage (SEMI-AUTO: nécessite confirmation)
-
-        Args:
-            opportunity: Opportunité détectée par detect_arbitrage()
-            amount: Montant à trader (USD)
-            mode: 'TEST' (simulation) ou 'REAL' (exécution réelle)
-
-        Returns:
-            {
-                'success': True/False,
-                'mode': 'TEST' ou 'REAL',
-                'profit': float,
-                'error': str (si erreur)
-            }
-        """
         if not opportunity.get('opportunity'):
-            return {
-                'success': False,
-                'error': 'Pas d\'opportunité valide'
-            }
+            return {'success': False, 'error': 'Pas d\'opportunité valide'}
 
-        print(f"\n💰 EXÉCUTION ARBITRAGE")
-        print(f"Token: {opportunity['token_mint'][:8]}...")
-        print(f"📊 Acheter {amount:.2f}$ sur {opportunity['buy_dex']} à {opportunity['buy_price']:.6f}")
-        print(f"📊 Vendre {amount:.2f}$ sur {opportunity['sell_dex']} à {opportunity['sell_price']:.6f}")
-        print(f"💵 Profit NET attendu: +{opportunity['net_profit']:.2f}%")
+        # Calculer le montant si non fourni
+        if amount is None:
+            amount = self.calculate_trade_amount(opportunity)
 
-        if mode == 'TEST':
-            # Simulation
-            estimated_profit = amount * (opportunity['net_profit'] / 100)
-            print(f"✅ [SIMULATION] Profit estimé: +{estimated_profit:.2f} USD")
+        # Calculer le profit estimé
+        estimated_profit = amount * (opportunity['net_profit'] / 100)
 
-            self.opportunities_executed += 1
+        # MODE TEST uniquement
+        print(f"✅ [TEST] Arbitrage exécuté: {opportunity['token_mint'][:8]}... | Montant: {amount}$ | Profit: +{estimated_profit:.2f}$")
 
-            return {
-                'success': True,
-                'mode': 'TEST',
-                'profit': round(estimated_profit, 2),
-                'timestamp': datetime.now().isoformat()
-            }
+        # Mettre à jour les statistiques
+        self.opportunities_executed += 1
+        self.total_profit += estimated_profit
+        if estimated_profit > 0:
+            self.win_count += 1
+        else:
+            self.loss_count += 1
 
-        elif mode == 'REAL':
-            # Mode REAL nécessite intégration avec solana_executor
-            print("⚠️ Exécution REAL nécessite configuration complète")
-            print("→ Intégration avec solana_executor requise")
-            print("→ Utilisez mode TEST pour le moment")
-
-            return {
-                'success': False,
-                'error': 'Mode REAL non implémenté (nécessite solana_executor)'
-            }
-
-    def scan_for_opportunities(self, token_mints: List[str]) -> List[Dict]:
-        """
-        Scanne plusieurs tokens pour trouver des opportunités
-
-        Args:
-            token_mints: Liste d'adresses de tokens
-
-        Returns:
-            Liste des opportunités trouvées
-        """
-        opportunities = []
-
-        print(f"\n🔍 Scan de {len(token_mints)} tokens pour arbitrage...")
-
-        for i, token_mint in enumerate(token_mints):
-            try:
-                opp = self.detect_arbitrage(token_mint)
-                if opp['opportunity']:
-                    opportunities.append(opp)
-                    print(f"✅ [{i+1}/{len(token_mints)}] Opportunité trouvée: {token_mint[:8]}...")
-                else:
-                    print(f"⚪ [{i+1}/{len(token_mints)}] Pas d'opportunité: {token_mint[:8]}...")
-
-                # Rate limiting pour ne pas surcharger les APIs
-                time.sleep(0.5)
-            except Exception as e:
-                print(f"❌ [{i+1}/{len(token_mints)}] Erreur pour {token_mint[:8]}: {e}")
-
-        print(f"\n📊 Résultat: {len(opportunities)} opportunités trouvées sur {len(token_mints)} tokens")
-
-        return opportunities
-
-    def get_statistics(self) -> Dict:
-        """
-        Retourne les statistiques de l'arbitrage
-
-        Returns:
-            {
-                'opportunities_found': int,
-                'opportunities_executed': int,
-                'success_rate': float,
-                'last_update': str
-            }
-        """
-        success_rate = (self.opportunities_executed / self.opportunities_found * 100) \
-                      if self.opportunities_found > 0 else 0
+        # Marquer le cooldown
+        self.cooldown_tracker[opportunity['token_mint']] = datetime.now()
 
         return {
-            'opportunities_found': self.opportunities_found,
-            'opportunities_executed': self.opportunities_executed,
-            'success_rate': round(success_rate, 1),
-            'last_update': self.last_update.isoformat() if self.last_update else None,
-            'min_profit_threshold': self.min_profit_threshold
+            'success': True,
+            'mode': 'TEST',
+            'amount': amount,
+            'profit': round(estimated_profit, 2),
+            'timestamp': datetime.now().isoformat()
         }
 
-    def get_stats(self) -> Dict:
-        """Alias pour get_statistics() (compatibilité API)"""
-        return self.get_statistics()
+    def get_statistics(self) -> Dict:
+        """Retourne les statistiques complètes"""
+        total_trades = self.opportunities_executed
+        win_rate = (self.win_count / total_trades * 100) if total_trades > 0 else 0
+
+        return {
+            'enabled': self.enabled,
+            'capital_dedicated': self.capital_dedicated,
+            'opportunities_found': self.opportunities_found,
+            'opportunities_executed': self.opportunities_executed,
+            'total_profit': round(self.total_profit, 2),
+            'win_rate': round(win_rate, 1),
+            'win_count': self.win_count,
+            'loss_count': self.loss_count,
+            'active_trades': len(self.active_trades),
+            'recent_opportunities': self.recent_opportunities,
+            'last_update': self.last_update.isoformat() if self.last_update else None
+        }
 
 
 # Instance globale

@@ -437,6 +437,7 @@ HTML_TEMPLATE = """
             <button class="nav-btn" onclick="showSection('backtesting')">🎮 Backtesting</button>
             <button class="nav-btn" onclick="showSection('benchmark')">🏆 Benchmark</button>
             <button class="nav-btn" onclick="showSection('risk_manager')">🛡️ Risk Manager</button>
+            <button class="nav-btn" onclick="showSection('arbitrage')">💰 Arbitrage</button>
             <button class="nav-btn" onclick="showSection('settings')">Paramètres & Sécurité</button>
             <button class="nav-btn" onclick="showSection('history')">Historique Complet</button>
         </div>
@@ -836,6 +837,129 @@ HTML_TEMPLATE = """
                     </button>
                     <button class="btn" onclick="resetRiskDefaults()" style="flex: 1; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                         🔄 Réinitialiser aux Défauts
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ARBITRAGE -->
+    <div id="arbitrage" class="section">
+        <div class="container">
+            <div class="card">
+                <h2>💰 Arbitrage Multi-DEX - Jupiter, Raydium, Orca</h2>
+
+                <!-- Statut ON/OFF -->
+                <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                    <label style="display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px;">
+                        <input type="checkbox" id="arbitrage_enabled" onchange="toggleArbitrage()" style="margin-right: 15px; width: 24px; height: 24px;">
+                        <span id="arbitrage_status_text" style="font-weight: bold;">❌ Arbitrage Désactivé</span>
+                    </label>
+                    <p style="color: #999; font-size: 13px; margin: 10px 0 0 0;">
+                        Active la détection automatique d'opportunités d'arbitrage entre DEX
+                    </p>
+                </div>
+
+                <!-- Statistiques en temps réel -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                    <div class="stat-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <div class="stat-label">Capital Dédié</div>
+                        <div class="stat-value" id="arb_capital">$100</div>
+                    </div>
+                    <div class="stat-box" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        <div class="stat-label">Opportunités Trouvées</div>
+                        <div class="stat-value" id="arb_opportunities">0</div>
+                    </div>
+                    <div class="stat-box" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        <div class="stat-label">Exécutées</div>
+                        <div class="stat-value" id="arb_executed">0</div>
+                    </div>
+                    <div class="stat-box" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                        <div class="stat-label">Win Rate</div>
+                        <div class="stat-value" id="arb_winrate">0%</div>
+                    </div>
+                    <div class="stat-box" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                        <div class="stat-label">Profit Total</div>
+                        <div class="stat-value" id="arb_profit">$0.00</div>
+                    </div>
+                </div>
+
+                <!-- Configuration -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                    <!-- Colonne 1: Capital & Position -->
+                    <div style="background: #2a2a2a; padding: 20px; border-radius: 8px;">
+                        <h3 style="color: #64B5F6; margin-bottom: 15px;">💵 Gestion du Capital</h3>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Capital Dédié à l'Arbitrage ($)
+                            <input type="number" id="arb_capital_dedicated" value="100" min="10" max="10000" step="10" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">Capital séparé du copy trading</span>
+                        </label>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            % du Capital par Trade (%)
+                            <input type="number" id="arb_percent_per_trade" value="10" min="1" max="100" step="1" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">% du capital arbitrage utilisé par opportunité</span>
+                        </label>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Montant Min par Trade ($)
+                            <input type="number" id="arb_min_amount" value="10" min="1" max="1000" step="5" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">Montant minimum pour exécuter un arbitrage</span>
+                        </label>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Montant Max par Trade ($)
+                            <input type="number" id="arb_max_amount" value="200" min="10" max="10000" step="10" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">Montant maximum pour limiter le risque</span>
+                        </label>
+                    </div>
+
+                    <!-- Colonne 2: Stratégie & Sécurité -->
+                    <div style="background: #2a2a2a; padding: 20px; border-radius: 8px;">
+                        <h3 style="color: #64B5F6; margin-bottom: 15px;">⚡ Stratégie & Sécurité</h3>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Profit Min Requis (%)
+                            <input type="number" id="arb_min_profit" value="1.5" min="0.1" max="10" step="0.1" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">% de profit net minimum après frais</span>
+                        </label>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Cooldown entre Trades (secondes)
+                            <input type="number" id="arb_cooldown" value="30" min="5" max="600" step="5" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">Délai minimum entre 2 arbitrages du même token</span>
+                        </label>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Max Trades Simultanés
+                            <input type="number" id="arb_max_concurrent" value="3" min="1" max="10" step="1" class="input-field" style="width: 100%; margin-top: 5px;">
+                            <span style="font-size: 12px; color: #999;">Nombre max d'arbitrages en même temps</span>
+                        </label>
+
+                        <label style="display: block; margin-bottom: 10px; color: #bbb;">
+                            Blacklist Tokens (adresses séparées par virgules)
+                            <textarea id="arb_blacklist" class="input-field" style="width: 100%; margin-top: 5px; min-height: 60px;" placeholder="So11..., EPjF..."></textarea>
+                            <span style="font-size: 12px; color: #999;">Tokens à exclure de l'arbitrage</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Opportunités récentes -->
+                <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="color: #64B5F6; margin-bottom: 15px;">🔍 Opportunités Récentes (10 dernières)</h3>
+                    <div id="recent_opportunities" style="max-height: 300px; overflow-y: auto;">
+                        <p style="color: #999; text-align: center;">Aucune opportunité détectée pour le moment...</p>
+                    </div>
+                </div>
+
+                <!-- Boutons d'action -->
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn" onclick="saveArbitrageConfig()" style="flex: 1; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        💾 Sauvegarder la Configuration
+                    </button>
+                    <button class="btn" onclick="loadArbitrageConfig()" style="flex: 1; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        🔄 Recharger
                     </button>
                 </div>
             </div>
@@ -1643,6 +1767,11 @@ HTML_TEMPLATE = """
         setInterval(updateRiskMetrics, 2000); // Update every 2 seconds
         updateRiskMetrics();
 
+        // 💰 Arbitrage: Initialize
+        loadArbitrageConfig();
+        setInterval(updateArbitrageStats, 3000); // Update every 3 seconds
+        updateArbitrageStats();
+
         // 🎯 Test toast notification on load
         setTimeout(() => {
             showNotification('Dashboard Phase 9 activé! Charts interactifs et métriques avancées disponibles.', 'success');
@@ -1781,6 +1910,148 @@ HTML_TEMPLATE = """
                 }
             } catch (error) {
                 console.error('Erreur update risk metrics:', error);
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // 💰 ARBITRAGE FUNCTIONS
+        // ═══════════════════════════════════════════════════════════════════
+
+        async function toggleArbitrage() {
+            const enabled = document.getElementById('arbitrage_enabled').checked;
+            try {
+                const response = await fetch('/api/arbitrage/toggle', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ enabled: enabled })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    const statusText = document.getElementById('arbitrage_status_text');
+                    statusText.textContent = enabled ? '✅ Arbitrage Activé' : '❌ Arbitrage Désactivé';
+                    statusText.style.color = enabled ? '#66bb6a' : '#ff5252';
+                    showNotification(enabled ? '✅ Arbitrage activé' : '❌ Arbitrage désactivé', 'success');
+                } else {
+                    showNotification('❌ Erreur: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('❌ Erreur lors du changement de statut', 'error');
+                console.error(error);
+            }
+        }
+
+        async function loadArbitrageConfig() {
+            try {
+                const response = await fetch('/api/arbitrage/config');
+                const data = await response.json();
+
+                if (data.success) {
+                    const config = data.config;
+
+                    // Update form fields
+                    document.getElementById('arbitrage_enabled').checked = config.enabled;
+                    document.getElementById('arb_capital_dedicated').value = config.capital_dedicated;
+                    document.getElementById('arb_percent_per_trade').value = config.percent_per_trade;
+                    document.getElementById('arb_min_amount').value = config.min_amount_per_trade;
+                    document.getElementById('arb_max_amount').value = config.max_amount_per_trade;
+                    document.getElementById('arb_min_profit').value = config.min_profit_threshold;
+                    document.getElementById('arb_cooldown').value = config.cooldown_seconds;
+                    document.getElementById('arb_max_concurrent').value = config.max_concurrent_trades;
+                    document.getElementById('arb_blacklist').value = config.blacklist_tokens.join(', ');
+
+                    // Update status text
+                    const statusText = document.getElementById('arbitrage_status_text');
+                    statusText.textContent = config.enabled ? '✅ Arbitrage Activé' : '❌ Arbitrage Désactivé';
+                    statusText.style.color = config.enabled ? '#66bb6a' : '#ff5252';
+                }
+            } catch (error) {
+                console.error('Erreur chargement config arbitrage:', error);
+            }
+        }
+
+        async function saveArbitrageConfig() {
+            try {
+                const blacklistRaw = document.getElementById('arb_blacklist').value;
+                const blacklistTokens = blacklistRaw.split(',').map(t => t.trim()).filter(t => t.length > 0);
+
+                const params = {
+                    enabled: document.getElementById('arbitrage_enabled').checked,
+                    capital_dedicated: parseFloat(document.getElementById('arb_capital_dedicated').value),
+                    percent_per_trade: parseFloat(document.getElementById('arb_percent_per_trade').value),
+                    min_amount_per_trade: parseFloat(document.getElementById('arb_min_amount').value),
+                    max_amount_per_trade: parseFloat(document.getElementById('arb_max_amount').value),
+                    min_profit_threshold: parseFloat(document.getElementById('arb_min_profit').value),
+                    cooldown_seconds: parseInt(document.getElementById('arb_cooldown').value),
+                    max_concurrent_trades: parseInt(document.getElementById('arb_max_concurrent').value),
+                    blacklist_tokens: blacklistTokens
+                };
+
+                const response = await fetch('/api/arbitrage/config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(params)
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification('✅ Configuration arbitrage sauvegardée', 'success');
+                } else {
+                    showNotification('❌ Erreur: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('❌ Erreur lors de la sauvegarde', 'error');
+                console.error(error);
+            }
+        }
+
+        async function updateArbitrageStats() {
+            try {
+                const response = await fetch('/api/arbitrage/stats');
+                const data = await response.json();
+
+                if (data.success) {
+                    const stats = data.stats;
+
+                    // Update stats display
+                    document.getElementById('arb_capital').textContent = '$' + stats.capital_dedicated.toFixed(2);
+                    document.getElementById('arb_opportunities').textContent = stats.opportunities_found;
+                    document.getElementById('arb_executed').textContent = stats.opportunities_executed;
+                    document.getElementById('arb_winrate').textContent = stats.win_rate.toFixed(1) + '%';
+
+                    const profitEl = document.getElementById('arb_profit');
+                    profitEl.textContent = '$' + stats.total_profit.toFixed(2);
+                    profitEl.style.color = stats.total_profit >= 0 ? '#66bb6a' : '#ff5252';
+
+                    // Update recent opportunities
+                    const oppContainer = document.getElementById('recent_opportunities');
+                    if (stats.recent_opportunities && stats.recent_opportunities.length > 0) {
+                        oppContainer.innerHTML = stats.recent_opportunities.map(opp => `
+                            <div style="background: #1a1a1a; padding: 12px; margin-bottom: 10px; border-radius: 6px; border-left: 3px solid ${opp.opportunity ? '#66bb6a' : '#999'};">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <span style="color: #64B5F6; font-weight: bold;">${opp.token_mint.substring(0, 8)}...</span>
+                                        <span style="color: #999; margin-left: 10px;">
+                                            ${opp.buy_dex} → ${opp.sell_dex}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span style="color: ${opp.net_profit >= 0 ? '#66bb6a' : '#ff5252'}; font-weight: bold; font-size: 16px;">
+                                            ${opp.net_profit > 0 ? '+' : ''}${opp.net_profit.toFixed(2)}%
+                                        </span>
+                                    </div>
+                                </div>
+                                <div style="color: #999; font-size: 12px; margin-top: 5px;">
+                                    Achat: $${opp.buy_price.toFixed(6)} | Vente: $${opp.sell_price.toFixed(6)} | Frais: ${opp.total_fees.toFixed(2)}%
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        oppContainer.innerHTML = '<p style="color: #999; text-align: center;">Aucune opportunité détectée pour le moment...</p>';
+                    }
+                }
+            } catch (error) {
+                console.error('Erreur update arbitrage stats:', error);
             }
         }
     </script>
@@ -2616,6 +2887,127 @@ def api_reset_circuit_breaker():
             'success': False,
             'error': str(e)
         }), 500
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 💰 ARBITRAGE ROUTES
+# ═════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/arbitrage/config', methods=['GET'])
+def api_get_arbitrage_config():
+    """Retourne la configuration actuelle de l'arbitrage"""
+    try:
+        config = arbitrage_engine.get_config()
+        return jsonify({
+            'success': True,
+            'config': config
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/arbitrage/config', methods=['POST'])
+def api_update_arbitrage_config():
+    """Met à jour la configuration de l'arbitrage"""
+    try:
+        params = request.get_json()
+        result = arbitrage_engine.update_config(params)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/arbitrage/toggle', methods=['POST'])
+def api_toggle_arbitrage():
+    """Active/désactive l'arbitrage"""
+    try:
+        data = request.get_json()
+        enabled = data.get('enabled', False)
+
+        result = arbitrage_engine.update_config({'enabled': enabled})
+
+        status = "activé" if enabled else "désactivé"
+        print(f"{'✅' if enabled else '❌'} Arbitrage {status}")
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/arbitrage/stats', methods=['GET'])
+def api_get_arbitrage_stats():
+    """Retourne les statistiques de l'arbitrage"""
+    try:
+        stats = arbitrage_engine.get_statistics()
+        return jsonify({
+            'success': True,
+            'stats': stats
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/arbitrage/detect', methods=['POST'])
+def api_detect_arbitrage():
+    """Détecte les opportunités d'arbitrage pour un token"""
+    try:
+        data = request.get_json()
+        token_mint = data.get('token_mint')
+
+        if not token_mint:
+            return jsonify({
+                'success': False,
+                'error': 'token_mint requis'
+            }), 400
+
+        opportunity = arbitrage_engine.detect_arbitrage(token_mint)
+
+        return jsonify({
+            'success': True,
+            'opportunity': opportunity
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/arbitrage/execute', methods=['POST'])
+def api_execute_arbitrage():
+    """Exécute un arbitrage (MODE TEST)"""
+    try:
+        data = request.get_json()
+        opportunity = data.get('opportunity')
+        amount = data.get('amount')  # Optionnel
+
+        if not opportunity:
+            return jsonify({
+                'success': False,
+                'error': 'opportunity requis'
+            }), 400
+
+        result = arbitrage_engine.execute_arbitrage(opportunity, amount)
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 if __name__ == '__main__':
     print("🚀 Lancement sur http://0.0.0.0:5000")
