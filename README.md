@@ -44,6 +44,23 @@
 - ✅ **Identification meilleur trader** automatique
 - ✅ **Mise à jour en temps réel**
 
+### 💰 Arbitrage Multi-DEX (Nouveau !)
+- ✅ **Onglet Arbitrage dédié** : Interface complète de gestion
+- ✅ **3 DEX supportés** : Jupiter, Raydium, Orca
+- ✅ **Configuration visuelle** : 9 paramètres ajustables en temps réel
+- ✅ **Capital séparé** : Gestion indépendante du copy trading
+- ✅ **Statistiques live** : Opportunités, Win Rate, Profit total
+- ✅ **Opportunités récentes** : Tableau des 10 dernières détectées
+- ✅ **Cooldown & Blacklist** : Protection contre trades excessifs
+- ✅ **Toggle ON/OFF** : Activation/désactivation instantanée
+
+### 🛡️ Risk Manager Avancé
+- ✅ **Onglet Risk Manager** : Gestion complète du risque
+- ✅ **Circuit Breaker** : Arrêt automatique si perte excessive
+- ✅ **Paramètres configurables** : Seuils, cooldown, limites
+- ✅ **Métriques temps réel** : Balance, Drawdown, PnL journalier
+- ✅ **Sauvegarde conditionnelle** : Persistance optionnelle des paramètres
+
 ### 📈 Tableau de Bord Complet
 - **Performance en temps réel** avec PnL total
 - **Graphique d'évolution** du portefeuille
@@ -66,7 +83,7 @@
 - ✅ **Déconnexion sécurisée** avec effacement immédiat
 
 ### 🌐 Interface Web Moderne
-- ✅ **6 onglets** : Tableau de Bord, Gestion Traders, 🎮 Backtesting, 🏆 Benchmark, Paramètres, Historique
+- ✅ **9 onglets** : Tableau de Bord, 🎯 LIVE TRADING, Gestion Traders, 📊 Positions, 🎮 Backtesting, 🏆 Benchmark, 🛡️ Risk Manager, 💰 Arbitrage, Paramètres, Historique
 - ✅ **Thème sombre** professionnel
 - ✅ **Responsive** : Fonctionne sur desktop et mobile
 - ✅ **Animations fluides** et navigation intuitive
@@ -85,12 +102,32 @@
 - ✅ **Sécurité API** : Masquage automatique des clés sensibles dans les logs
 - ✅ **Thread safety** : Synchronisation complète des accès concurrents
 
-### 💰 Phase 2 : Arbitrage Multi-DEX Implémenté
-- ✅ **Détection arbitrage** : Prix comparés sur Jupiter, Raydium, Orca
-- ✅ **Calcul profit net** : Prise en compte des frais DEX (0.25-0.30%)
-- ✅ **Position sizing** : Montant optimal selon profit attendu
-- ✅ **Cache intégré** : TTL 10s pour limiter appels API
-- 💰 **Seuil minimum** : 1.5% profit net après frais
+### 💰 Phase 2 : Système d'Arbitrage Multi-DEX Complet
+**Arbitrage Engine :**
+- ✅ **3 DEX supportés** : Jupiter, Raydium, Orca
+- ✅ **Configuration complète** : 9 paramètres configurables via interface web
+- ✅ **ON/OFF Toggle** : Activer/désactiver l'arbitrage en un clic
+- ✅ **Capital dédié** : Séparé du copy trading ($100 par défaut)
+- ✅ **Position sizing intelligent** : % du capital par trade (10% par défaut)
+- ✅ **Limites configurables** : Min/Max montants par trade ($10-$200)
+- ✅ **Profit minimum** : Seuil configurable (1.5% net après frais par défaut)
+- ✅ **Cooldown système** : Délai entre trades du même token (30s)
+- ✅ **Blacklist tokens** : Exclure certains tokens de l'arbitrage
+- ✅ **Max concurrent** : Limite de trades simultanés (3 max)
+- ✅ **Statistiques complètes** : Opportunités trouvées/exécutées, Win Rate, Profit total
+- ✅ **Opportunités récentes** : Affichage des 10 dernières avec détails
+- ✅ **Persistence** : Configuration sauvegardée dans config.json
+
+**Interface Web - Onglet Arbitrage :**
+- ✅ **Toggle ON/OFF visuel** avec statut en temps réel
+- ✅ **5 métriques temps réel** : Capital, Opportunités, Exécutées, Win Rate, Profit
+- ✅ **Formulaire configuration** : 2 colonnes (Capital & Stratégie)
+- ✅ **Table opportunités** : Détails complets (DEX, prix, profit, frais)
+- ✅ **Mise à jour auto** : Toutes les 3 secondes
+- ✅ **Sauvegarde persistante** : Conserve les paramètres entre sessions
+
+**API Routes :**
+- ✅ 6 routes complètes (config GET/POST, toggle, stats, detect, execute)
 
 ### 🚀 WebSocket Ultra-Stable (`helius_websocket.py`)
 - ✅ **Reconnexion infinie** : 999 tentatives (vs 10 avant)
@@ -105,7 +142,8 @@
 | Aspect | État | Détails |
 |--------|------|---------|
 | **Thread Safety** | ✅ Corrigé | Race conditions éliminées |
-| **Arbitrage Multi-DEX** | ✅ Implémenté | 3 DEX supportés (Jupiter, Raydium, Orca) |
+| **Arbitrage Multi-DEX** | ✅ Complet | 3 DEX + Interface web complète + 9 paramètres |
+| **Risk Manager** | ✅ Complet | Circuit breaker + sauvegarde conditionnelle |
 | **WebSocket Stabilité** | ✅ Ultra-stable | Reconnexion infinie + heartbeat optimisé |
 | **Latence Détection** | 🔄 2 secondes | Polling HTTP (plan gratuit) |
 | **Fiabilité** | ✅ 100% | Polling HTTP stable et fiable |
