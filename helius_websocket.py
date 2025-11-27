@@ -27,12 +27,16 @@ class HeliosWebsocketListener:
         self.api_key = os.getenv('HELIUS_API_KEY')
         # Tester les différents formats WSS Helius
         # Format 1 (principal): avec /v0/
-        self.wss_urls = [
-            f"wss://api-mainnet.helius-rpc.com/v0/?api-key={self.api_key}",
-            f"wss://api-mainnet.helius-rpc.com/?api-key={self.api_key}",
-            f"wss://api-mainnet.helius-rpc.com/ws?api-key={self.api_key}"
-        ]
-        self.wss_url = self.wss_urls[0]  # Start with primary
+        # ⚠️ IMPORTANT: Helius WebSocket n'est PAS disponible gratuitement
+        # WebSocket Helius nécessite un plan Enterprise ($$$)
+        # → Utiliser helius_polling.py à la place (polling HTTP toutes les 2s)
+        #
+        # Si vous avez un plan Enterprise, décommentez et ajustez l'URL :
+        # self.wss_urls = [f"wss://your-enterprise-endpoint.helius-rpc.com/?api-key={self.api_key}"]
+        #
+        # Pour l'instant, désactivons le WebSocket (fallback sur polling)
+        self.wss_urls = []  # ✨ Vide = désactivé, utilise polling à la place
+        self.wss_url = None  # ✨ Pas d'URL = désactivé
         self.subscriptions = {}  # {trader_address: callback_func}
         self.is_running = False
         self.websocket = None
@@ -340,11 +344,19 @@ class HeliosWebsocketListener:
         if not self.api_key:
             print("⚠️ Websocket Helius non disponible (API key manquante)")
             return
-        
+
+        # ✨ NOUVEAU: Vérifier si WebSocket est disponible (URLs configurées)
+        if not self.wss_urls or len(self.wss_urls) == 0:
+            print("ℹ️ WebSocket Helius désactivé (plan gratuit)")
+            print("   → Utilisation de Helius Polling à la place (toutes les 2s)")
+            print("   → Pour activer WebSocket: Plan Enterprise Helius requis")
+            self.is_connected = False
+            return
+
         if self.is_running:
             print("⚠️ Websocket déjà en cours")
             return
-        
+
         self.is_running = True
         
         # Lancer dans un thread séparé

@@ -1544,11 +1544,12 @@ def api_status():
     # Utiliser le solde du wallet
     total_capital = backend.get_wallet_balance_dynamic()
 
-    # Statut du WebSocket Helius
+    # ✨ AMÉLIORÉ: Statut du WebSocket Helius avec is_connected
     websocket_status = {
         'active': helius_websocket.is_running,
         'subscriptions': len(helius_websocket.subscriptions),
-        'connected': helius_websocket.websocket is not None
+        'connected': helius_websocket.is_connected,  # ✨ Utiliser is_connected au lieu de websocket
+        'quality': helius_websocket.connection_quality  # ✨ NOUVEAU: Qualité connexion
     }
 
     return jsonify({
@@ -1563,6 +1564,25 @@ def api_status():
         'total_capital': total_capital,
         'websocket_helius': websocket_status
     })
+
+@app.route('/api/websocket_stats')
+def api_websocket_stats():
+    """✨ NOUVEAU: Retourne les statistiques détaillées du WebSocket"""
+    try:
+        stats = helius_websocket.get_connection_stats()
+        return jsonify({
+            'success': True,
+            'stats': stats
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'stats': {
+                'is_connected': False,
+                'connection_quality': 0
+            }
+        })
 
 @app.route('/api/traders_performance')
 def api_traders_performance():
