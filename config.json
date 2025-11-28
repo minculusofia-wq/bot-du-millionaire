@@ -2,7 +2,6 @@
   "slippage": 50.9,
   "active_traders_limit": 3,
   "currency": "USD",
-  "total_capital": 1000,
   "rpc_url": "https://api.mainnet-beta.solana.com",
   "tp1_percent": 5.0,
   "tp1_profit": 50.0,
@@ -15,7 +14,7 @@
   "traders": [
     {
       "name": "Japon",
-      "emoji": "🚀",
+      "emoji": "\ud83d\ude80",
       "address": "EQaxqKT3N981QBmdSUGNzAGK5S26zUwAdRHhBCgn87zD",
       "active": false,
       "capital": 100.0,
@@ -24,7 +23,7 @@
     },
     {
       "name": "colombie",
-      "emoji": "♛",
+      "emoji": "\u265b",
       "address": "2undvDBttb5ohSggdzEhGUq6mhNBf9JsiLTcsguPp51c",
       "active": false,
       "capital": 0.0,
@@ -33,7 +32,7 @@
     },
     {
       "name": "Euris",
-      "emoji": "🧈",
+      "emoji": "\ud83e\uddc8",
       "address": "DfMxre4cKmvogbLrPigxmibVTTQDuzjdXojWzjCXXhzj",
       "active": false,
       "capital": 100.0,
@@ -42,7 +41,7 @@
     },
     {
       "name": "Alexcooks",
-      "emoji": "🧙",
+      "emoji": "\ud83e\uddd9",
       "address": "89HbgWduLwoxcofWpmn1EiF9wEdpgkNDEyPjzZ72mkDi",
       "active": false,
       "capital": 0.0,
@@ -51,7 +50,7 @@
     },
     {
       "name": "Starter",
-      "emoji": "⚡",
+      "emoji": "\u26a1",
       "address": "BBPKQwYLyiPjAX2KTFxanR7vxwa7majAF7c7yoaRX8oR",
       "active": true,
       "capital": 100.0,
@@ -60,7 +59,7 @@
     },
     {
       "name": "Canada",
-      "emoji": "🐉",
+      "emoji": "\ud83d\udc09",
       "address": "CTC7HVkCkPuChSJjArVip375ogvMUtQLhdzLfiPizdEc",
       "active": false,
       "capital": 100.0,
@@ -69,7 +68,7 @@
     },
     {
       "name": "Italie",
-      "emoji": "🧉",
+      "emoji": "\ud83e\uddc9",
       "address": "7BNaxx6KdUYrjACNQZ9He26NBFoFxujQMAfNLnArLGH5",
       "active": true,
       "capital": 100.0,
@@ -78,7 +77,7 @@
     },
     {
       "name": "Sardaigne",
-      "emoji": "🏯",
+      "emoji": "\ud83c\udfef",
       "address": "DmB4xRNaVH2Y2FVBFsJKYvdPDKYjx2sgC8aQFRBF4gB2",
       "active": false,
       "capital": 100.0,
@@ -87,7 +86,7 @@
     },
     {
       "name": "Algerie",
-      "emoji": "🏴‍☠️",
+      "emoji": "\ud83c\udff4\u200d\u2620\ufe0f",
       "address": "EzLu595m6CRxPybAUjSser9FmjDvjS3d3vyX4CPiu8Xn",
       "active": false,
       "capital": 0.0,
@@ -96,7 +95,7 @@
     },
     {
       "name": "Chester",
-      "emoji": "🚂",
+      "emoji": "\ud83d\ude82",
       "address": "PMJA8UQDyWTFw2Smhyp9jGA6aTaP7jKHR7BPudrgyYN",
       "active": false,
       "capital": 100.0,

@@ -22,7 +22,7 @@
 - ✅ **Respect TP/SL** : Si configurés, le bot applique les Take Profit/Stop Loss
 - ✅ **Mode Mirror** : Si TP/SL = 0, bot vend exactement comme le trader
 - ✅ **Vente manuelle** : Bonus optionnel - bouton 💰 Vendre par position
-- ✅ **Mode TEST = MODE REAL** : Logique identique dans les deux modes
+- ✅ **MODE REAL uniquement** : Utilise le capital réel du wallet Solana
 
 ### 💰 Contrôle Trading Avancé
 - ✅ **Take Profit & Stop Loss configurables** par trader
@@ -385,19 +385,19 @@ Les paramètres principaux sont sauvegardés automatiquement :
 
 ---
 
-## 🛠️ Mode TEST vs REEL
+## 🛠️ Mode REAL - Trading Réel
 
-### Mode TEST
-- **Simulation** des trades basée sur les portefeuilles réels
-- **Pas de transactions réelles**
-- **Parfait pour tester** la configuration
-- **Activation** : Onglet "Paramètres" → "Basculer Mode TEST/REEL"
+### Capital Réel du Wallet
+- **Balance du wallet Solana** affichée en temps réel
+- **Pas de capital fictif** - uniquement le solde réel
+- **Clé privée obligatoire** pour trader
+- **3 traders maximum** peuvent être actifs simultanément
 
-### Mode REEL
-- **Exécution de vrais trades**
-- **Risque de perte réelle**
-- **Nécessite une clé privée**
-- ⚠️ À utiliser avec prudence
+### Sécurité
+- **Clé privée** stockée en mémoire uniquement
+- **Jamais sauvegardée** sur disque
+- **Déconnexion sécurisée** disponible
+- ⚠️ Utilisez un wallet dédié au trading
 
 ---
 
@@ -474,7 +474,7 @@ Créer un bot de copy trading simple et sécurisé pour débutants qui veulent a
 **Dernière mise à jour** : 27 novembre 2025
 **Version** : 4.1.0 (Phase 9 Complétée - Optimisations Performance GRATUITES)
 **Statut** : ✅ Production-Ready
-**Mode TEST** : ✅ Vraies données + Exécution simulée (1000$ fictifs)
+**Mode REAL** : ✅ Capital réel du wallet Solana uniquement
 **Auto Sell** : ✅ Automatique + Respect TP/SL + Mode Mirror
 **Backtesting** : ✅ 30+ paramètres testables
 **Benchmark** : ✅ Classement Bot vs Traders

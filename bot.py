@@ -548,7 +548,7 @@ HTML_TEMPLATE = """
             <div class="card">
                 <h2>🎯 Gestion des 10 Traders</h2>
                 <p>Actifs: <span id="active_count" style="color: #FFD600; font-size: 20px;">0/3</span></p>
-                <p>Capital Alloué: <span id="capital_allocated" style="color: #00E676;">$0</span> / <span id="total_capital_display" style="color: #FFD600;">$1000</span></p>
+                <p>Balance Wallet: <span id="total_capital_display" style="color: #FFD600;">$0</span> SOL | Alloué: <span id="capital_allocated" style="color: #00E676;">$0</span></p>
                 <div id="traders_list"></div>
             </div>
         </div>
@@ -1131,7 +1131,7 @@ HTML_TEMPLATE = """
                     const tradeCount = history.trades ? history.trades.length : 0;
                     document.getElementById('total_trades').textContent = tradeCount;
                 });
-                document.getElementById('total_capital_display').textContent = '$' + data.total_capital;
+                document.getElementById('total_capital_display').textContent = data.total_capital.toFixed(2);
                 
                 // ✅ AFFICHER LE PnL TOTAL ET PERFORMANCE BOT
                 const pnl_color = data.pnl_total >= 0 ? '#00E676' : '#D50000';
@@ -1615,7 +1615,7 @@ HTML_TEMPLATE = """
             fetch('/api/status').then(r => r.json()).then(status => {
                 document.getElementById('live_portfolio').textContent = '$' + status.portfolio;
                 document.getElementById('live_active_count').textContent = status.active_traders + '/3';
-                document.getElementById('total_capital_display').textContent = '$' + status.total_capital.toFixed(2);
+                document.getElementById('total_capital_display').textContent = status.total_capital.toFixed(2);
                 
                 // ✅ METTRE À JOUR LE GRAPHIQUE PnL
                 chartData.push(status.portfolio);

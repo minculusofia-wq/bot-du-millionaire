@@ -14,7 +14,7 @@ class BotBackend:
         self.config_file = "config.json"
         self.load_config()
         self.is_running = False
-        self.virtual_balance = self.data.get('total_capital', 1000.0)
+        # MODE REAL uniquement - pas de capital fictif
         self.trader_capital_used = {}  # Capital utilisé par trader
         self.portfolio_cache = None
         self.portfolio_cache_time = None
@@ -55,7 +55,6 @@ class BotBackend:
             "slippage": 1.0,
             "active_traders_limit": 3,
             "currency": "USD",
-            "total_capital": 1000,
             "wallet_private_key": "",
             "rpc_url": "https://api.mainnet-beta.solana.com",
             "tp1_percent": 33,
@@ -198,17 +197,6 @@ class BotBackend:
                 total += trader.get('capital', 100)
         return total
     
-    def set_total_capital(self, capital):
-        """Définit le capital total du portefeuille"""
-        self.data['total_capital'] = float(capital)
-        self.virtual_balance = float(capital)
-        self.save_config()
-        return True
-    
-    def get_total_capital(self):
-        """Retourne le capital total du portefeuille"""
-        return self.data.get('total_capital', 1000.0)
-    
     def get_wallet_balance_dynamic(self):
         """
         Récupère le solde du wallet Solana en temps réel
@@ -274,7 +262,8 @@ class BotBackend:
     
     def get_capital_summary(self):
         """Retourne un résumé du capital : total, utilisé, restant"""
-        total_capital = self.get_total_capital()
+        # Utiliser le capital réel du wallet
+        total_capital = self.get_wallet_balance_dynamic()
         allocated_capital = sum(t.get('capital', 0) for t in self.data['traders'])
         remaining_capital = total_capital - allocated_capital
         
