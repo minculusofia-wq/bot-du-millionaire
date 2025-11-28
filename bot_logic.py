@@ -216,17 +216,35 @@ class BotBackend:
         """Retourne le PnL total RÉEL depuis auto_sell_manager (SEULEMENT des traders ACTIFS)"""
         try:
             from auto_sell_manager import auto_sell_manager
-            
+
             total_pnl = 0
             # Boucler sur les traders actifs et additionner leur PnL réel
             for trader in self.data['traders']:
                 if trader.get('active'):
                     trader_pnl_data = auto_sell_manager.get_trader_pnl(trader['name'])
                     total_pnl += trader_pnl_data.get('pnl', 0)
-            
+
             return round(total_pnl, 2)
         except Exception as e:
             print(f"⚠️ Erreur calcul PnL total: {e}")
+            return 0
+
+    def get_total_pnl_percent(self):
+        """Retourne le PnL total en pourcentage du capital initial"""
+        try:
+            wallet_balance = self.get_wallet_balance_dynamic()
+            total_pnl = self.get_total_pnl()
+
+            # Capital initial = balance actuel - PnL
+            initial_capital = wallet_balance - total_pnl
+
+            if initial_capital <= 0:
+                return 0
+
+            pnl_percent = (total_pnl / initial_capital) * 100
+            return round(pnl_percent, 2)
+        except Exception as e:
+            print(f"⚠️ Erreur calcul PnL%: {e}")
             return 0
 
     def get_wallet_balance_dynamic(self):
@@ -241,8 +259,8 @@ class BotBackend:
         
         # Cache miss - récupérer balance réel
         try:
-            from solana_integration import solana_integration
-            
+            from solana_integration import solana_tracker
+
             wallet_address = self.data.get('wallet_address')
             if not wallet_address:
                 private_key = self.data.get('wallet_private_key', '')
@@ -254,8 +272,8 @@ class BotBackend:
                         return 0
                 else:
                     return 0
-            
-            balance_sol = solana_integration.get_sol_balance(wallet_address)
+
+            balance_sol = solana_tracker.get_sol_balance(wallet_address)
             self.wallet_balance_cache = balance_sol
             self.wallet_balance_cache_time = current_time
             return balance_sol
