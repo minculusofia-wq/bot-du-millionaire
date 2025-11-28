@@ -2169,8 +2169,9 @@ def api_traders_performance():
 
 @app.route('/api/toggle_bot')
 def api_toggle_bot():
-    backend.toggle_bot(not backend.is_running)
-    return jsonify({'status': 'ok'})
+    new_status = not backend.is_running
+    backend.toggle_bot(new_status)
+    return jsonify({'status': 'ok', 'is_running': backend.is_running})
 
 @app.route('/api/toggle_trader/<int:index>')
 def api_toggle_trader(index):

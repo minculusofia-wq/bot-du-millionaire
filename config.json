@@ -16,7 +16,7 @@
       "name": "Japon",
       "emoji": "\ud83d\ude80",
       "address": "EQaxqKT3N981QBmdSUGNzAGK5S26zUwAdRHhBCgn87zD",
-      "active": true,
+      "active": false,
       "capital": 100.0,
       "per_trade_amount": 10.0,
       "min_trade_amount": 10.0
@@ -186,6 +186,7 @@
     }
   },
   "is_running": false,
+  "params_saved": false,
   "arbitrage": {
     "enabled": false,
     "capital_dedicated": 0,
@@ -196,6 +197,5 @@
     "cooldown_seconds": 30,
     "max_concurrent_trades": 0,
     "blacklist_tokens": []
-  },
-  "params_saved": false
+  }
 }

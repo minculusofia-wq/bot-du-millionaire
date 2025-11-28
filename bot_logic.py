@@ -279,7 +279,7 @@ class BotBackend:
         """Toggle l'état du bot et persiste dans config"""
         self.is_running = status
         self.data['is_running'] = status  # Persister l'état
-        self.save_config()  # Sauvegarder (asynchrone avec debouncing)
+        self.save_config_sync()  # ⚡ CRITIQUE: Sauvegarde SYNCHRONE immédiate
         print(f"🤖 Bot {'ACTIVÉ ✅' if status else 'DÉSACTIVÉ ❌'}")
 
     def update_trader(self, index, name, emoji, address, capital=None, per_trade_amount=None, min_trade_amount=None):
