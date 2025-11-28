@@ -1,22 +1,22 @@
 {
-  "slippage": 50.9,
+  "slippage": 0,
   "active_traders_limit": 3,
   "currency": "USD",
   "rpc_url": "https://api.mainnet-beta.solana.com",
-  "tp1_percent": 5.0,
-  "tp1_profit": 50.0,
-  "tp2_percent": 10.0,
-  "tp2_profit": 100.0,
-  "tp3_percent": 20.0,
-  "tp3_profit": 200.0,
-  "sl_percent": 2.0,
-  "sl_loss": 20.0,
+  "tp1_percent": 0,
+  "tp1_profit": 0,
+  "tp2_percent": 0,
+  "tp2_profit": 0,
+  "tp3_percent": 0,
+  "tp3_profit": 0,
+  "sl_percent": 0,
+  "sl_loss": 0,
   "traders": [
     {
       "name": "Japon",
       "emoji": "\ud83d\ude80",
       "address": "EQaxqKT3N981QBmdSUGNzAGK5S26zUwAdRHhBCgn87zD",
-      "active": false,
+      "active": true,
       "capital": 100.0,
       "per_trade_amount": 10.0,
       "min_trade_amount": 10.0
@@ -185,15 +185,16 @@
       "sl": 3.2
     }
   },
+  "is_running": true,
   "arbitrage": {
-    "enabled": true,
-    "capital_dedicated": 250.0,
-    "percent_per_trade": 15.0,
-    "min_profit_threshold": 2.0,
-    "min_amount_per_trade": 10.0,
-    "max_amount_per_trade": 200.0,
+    "enabled": false,
+    "capital_dedicated": 0,
+    "percent_per_trade": 0,
+    "min_profit_threshold": 0,
+    "min_amount_per_trade": 0,
+    "max_amount_per_trade": 0,
     "cooldown_seconds": 30,
-    "max_concurrent_trades": 3,
+    "max_concurrent_trades": 0,
     "blacklist_tokens": []
   }
 }

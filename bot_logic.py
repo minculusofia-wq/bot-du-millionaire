@@ -90,6 +90,21 @@ class BotBackend:
             needs_save = True
             print("🔄 Migration: Ajout config arbitrage (defaults à 0)")
         
+        # RESET FORCÉ: Mettre TP/SL/Slippage à 0 (Mode Mirror par défaut)
+        # Note: Cette section peut être supprimée après la première migration
+        if self.data.get('slippage') != 0 or self.data.get('tp1_percent') != 0 or self.data.get('sl_percent') != 0:
+            print("🔄 Migration: Reset TP/SL/Slippage à 0 (Mode Mirror)")
+            self.data['slippage'] = 0
+            self.data['tp1_percent'] = 0
+            self.data['tp1_profit'] = 0
+            self.data['tp2_percent'] = 0
+            self.data['tp2_profit'] = 0
+            self.data['tp3_percent'] = 0
+            self.data['tp3_profit'] = 0
+            self.data['sl_percent'] = 0
+            self.data['sl_loss'] = 0
+            needs_save = True
+        
         if needs_save:
             self.save_config_sync()
             print("✅ Migration de config effectuée")
