@@ -1,0 +1,4 @@
+{"timestamp": "2025-11-27T19:43:09.624449", "type": "trade_execution", "trader": "TEST", "latency_ms": 100, "slippage_percent": 0.5, "success": true}
+{"timestamp": "2025-11-27T19:46:30.084264", "type": "trade_execution", "trader": "TEST", "latency_ms": 100, "slippage_percent": 0.5, "success": true}
+{"timestamp": "2025-11-27T19:49:42.165097", "type": "trade_execution", "trader": "TEST", "latency_ms": 100, "slippage_percent": 0.5, "success": true}
+{"timestamp": "2025-11-27T20:02:57.376045", "type": "trade_execution", "trader": "TEST", "latency_ms": 100, "slippage_percent": 0.5, "success": true}
