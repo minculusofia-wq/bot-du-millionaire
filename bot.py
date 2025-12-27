@@ -66,14 +66,23 @@ from bot_logic import BotBackend
 from db_manager import db_manager
 from audit_logger import audit_logger
 
+# 🔧 Optimisations
+from logging_config import setup_logging, get_logger
+from startup_reconciler import run_startup_reconciliation
+from cache_manager import start_cleanup_scheduler
+
 # Init Flask
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading') # Utiliser threading pour compatibilité simple
 
-# Configuration Logger
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("BotBackend")
+# 🔧 Configuration Logging Structuré
+log_level = os.getenv('LOG_LEVEL', 'INFO')
+setup_logging(level=log_level, log_to_file=True, json_logs=False)
+logger = get_logger("BotBackend")
+
+# 🔧 Démarrer le nettoyage automatique du cache
+start_cleanup_scheduler(interval=300)  # Toutes les 5 minutes
 
 backend = BotBackend()
 
@@ -911,6 +920,19 @@ def api_markets_active():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+
+    # 🔄 Réconciliation des positions au démarrage
+    print("\n🔄 Réconciliation des positions...")
+    try:
+        reconciliation_report = run_startup_reconciliation(polymarket_executor)
+        print(f"✅ Réconciliation terminée: {reconciliation_report['positions_checked']} positions vérifiées")
+        if reconciliation_report['positions_stale'] > 0:
+            print(f"⚠️ {reconciliation_report['positions_stale']} positions marquées STALE")
+        if reconciliation_report['errors']:
+            print(f"⚠️ {len(reconciliation_report['errors'])} erreurs lors de la réconciliation")
+    except Exception as e:
+        print(f"⚠️ Réconciliation échouée: {e}")
+
     print(f"\n🚀 Bot démarré sur http://localhost:{port}")
     print("=" * 60)
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)

@@ -10,6 +10,7 @@ from datetime import datetime
 from polymarket_client import polymarket_client # UPDATED IMPORT
 from db_manager import db_manager
 from strategy_engine import strategy_engine # ✨ Import Strategy Engine
+from position_lock_manager import position_lock, PositionLockError # 🔒 Anti-double vente
 
 # Configuration logging
 logging.basicConfig(level=logging.INFO)
@@ -286,8 +287,8 @@ class PolymarketExecutor:
     def sell_position(self, position_id, amount: float = None, market: str = None, side: str = None) -> Dict:
         """
         Vend une position (totalement ou partiellement).
-        Version 2.0: Accepte un ID de position unique (int) ou token_id (str) pour rétrocompatibilité
-        
+        Version 2.1: Avec protection anti-double vente via locks
+
         Args:
             position_id: ID unique de la position (int) ou token_id (str)
             amount: Montant USD à vendre (None = tout vendre)
@@ -296,7 +297,42 @@ class PolymarketExecutor:
         """
         try:
             import time
-            
+
+            # Résoudre l'ID de position pour le lock
+            resolved_id = position_id if isinstance(position_id, int) else None
+            if not resolved_id:
+                # Trouver l'ID depuis token_id
+                current_positions = db_manager.get_bot_positions(status=None)
+                position = next((p for p in current_positions if p.get('token_id') == position_id), None)
+                if position:
+                    resolved_id = position.get('id') or position.get('position_id')
+
+            # 🔒 Vérifier si la position est déjà en cours de vente
+            if resolved_id and position_lock.is_locked(resolved_id):
+                logger.warning(f"⚠️ Position #{resolved_id} déjà en cours de traitement")
+                return {'success': False, 'error': 'Position déjà en cours de vente'}
+
+            # 🔒 Acquérir le verrou (non-bloquant pour éviter les attentes)
+            if resolved_id and not position_lock.try_lock(resolved_id):
+                logger.warning(f"⚠️ Impossible de verrouiller position #{resolved_id}")
+                return {'success': False, 'error': 'Position verrouillée par un autre processus'}
+
+            try:
+                return self._execute_sell(position_id, amount, market, side)
+            finally:
+                # 🔒 Toujours libérer le verrou
+                if resolved_id:
+                    position_lock.release(resolved_id)
+
+        except Exception as e:
+            logger.error(f"❌ Erreur sell_position: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _execute_sell(self, position_id, amount: float = None, market: str = None, side: str = None) -> Dict:
+        """Exécution interne de la vente (appelée avec le lock acquis)."""
+        try:
+            import time
+
             # Déterminer si c'est un ID numérique ou un token_id
             if isinstance(position_id, int):
                 # Nouveau format: ID de position unique
