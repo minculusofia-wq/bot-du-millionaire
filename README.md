@@ -32,6 +32,11 @@
 - **📈 Graphiques PnL** : Visualisation de la performance sur 30 jours.
 - **🔒 Sécurité** : Stockage chiffré des clés (plus de re-saisie à chaque lancement).
 
+### ⚡ Optimisations v2.1
+- **🔐 Anti-double vente** : Système de locks pour éviter les ventes simultanées d'une même position.
+- **🔄 Réconciliation au démarrage** : Vérification et nettoyage automatique des positions orphelines.
+- **📝 Logging structuré** : Logs colorés, rotation automatique, fichiers séparés (bot.log, errors.log, trades.log).
+
 ---
 
 ## 🚀 Installation
