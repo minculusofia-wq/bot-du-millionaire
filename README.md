@@ -25,12 +25,11 @@
 4. **Historique** - Historique complet des trades et PnL
 5. **Paramètres** - Configuration API et gestion des risques
 
-### ✨ Nouveautés v2
-- **🧠 Kelly Criterion** : Gestion automatique de la taille de position basée sur la performance du trader.
-- **🛡️ Trailing Stop** : Sécurisation des gains avec un SL dynamique qui suit le prix.
-- **⚡ WebSocket Alchemy** : Détection ultra-rapide (<1s) des trades sur la blockchain.
-- **📈 Graphiques PnL** : Visualisation de la performance sur 30 jours.
-- **🔒 Sécurité** : Stockage chiffré des clés (plus de re-saisie à chaque lancement).
+### ✨ Nouveautés v2.2 (Dernière Mise à Jour)
+- **🛡️ Sécurité Maximale (Machine Binding)** : Vos identifiants sont désormais physiquement liés à votre matériel (UUID). Même en cas de vol du fichier `.env`, ils sont indéchiffrables sur une autre machine.
+- **🚀 Réactivité Accrue** : Intervalle de surveillance réduit à **5 secondes** pour une copie quasi instantanée.
+- **🧠 Kelly Criterion Dynamique** : La taille des positions s'adapte maintenant aux prix réels du carnet d'ordres (Market Odds) en temps réel.
+- **⚙️ Interface Identifiants** : Gérez vos clés API directement via l'interface web (Paramètres), chiffrées automatiquement via SecretManager.
 
 ### ⚡ Optimisations v2.1
 - **🔐 Anti-double vente** : Système de locks pour éviter les ventes simultanées d'une même position.
