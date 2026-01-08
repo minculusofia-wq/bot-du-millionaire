@@ -116,11 +116,6 @@ class InsiderScanner:
             }
         }
 
-    def set_polygonscan_key(self, api_key: str):
-        """Met à jour la clé API Polygonscan à chaud"""
-        self.polygonscan_api_key = api_key
-        logger.info(f"✅ Clé Polygonscan mise à jour pour InsiderScanner ({api_key[:6]}...)")
-
         # Deduplication cache: {dedup_key: timestamp}
         self.recent_alerts = {}
         self.dedup_window = 3600  # 1 heure
@@ -143,6 +138,11 @@ class InsiderScanner:
             logger.info("   ✅ Polygonscan API configuree")
         else:
             logger.info("   ⚠️ Polygonscan API non configuree (detection profil limitee)")
+
+    def set_polygonscan_key(self, api_key: str):
+        """Met à jour la clé API Polygonscan à chaud"""
+        self.polygonscan_api_key = api_key
+        logger.info(f"✅ Clé Polygonscan mise à jour pour InsiderScanner ({api_key[:6]}...)")
 
     # =========================================================================
     # CONFIGURATION
