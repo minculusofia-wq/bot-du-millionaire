@@ -989,12 +989,35 @@ def api_markets_active():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ============================================================================
-# MAIN
-# ============================================================================
+def sync_tracked_wallets():
+    """Synchronise les wallets suivis (config.json) avec la DB Insider Tracker"""
+    print("🔄 Synchronisation des wallets suivis avec la DB Insider...")
+    try:
+        wallets = backend.data.get('polymarket', {}).get('tracked_wallets', [])
+        synced_count = 0
+        for w in wallets:
+            address = w.get('address', '').lower()
+            if not address:
+                continue
+            
+            # Sauvegarder en tant que source MANUAL
+            db_manager.save_insider_wallet({
+                'address': address,
+                'nickname': w.get('name', 'Wallet Sync'),
+                'notes': 'Synchronisé au démarrage depuis config.json'
+            }, source='MANUAL')
+            synced_count += 1
+            
+        if synced_count > 0:
+            print(f"✅ {synced_count} wallets synchronisés avec succès")
+    except Exception as e:
+        print(f"⚠️ Erreur synchronisation wallets: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+
+    # 🔄 Synchronisation des wallets au démarrage
+    sync_tracked_wallets()
 
     # 🔄 Réconciliation des positions au démarrage
     print("\n🔄 Réconciliation des positions...")
