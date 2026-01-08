@@ -381,6 +381,8 @@ function renderSavedWallets(wallets) {
             ? '<span class="source-badge manual">MANUAL</span>'
             : '<span class="source-badge scanner">SCANNER</span>';
 
+        const pnlClass = (w.pnl || 0) >= 0 ? 'positive' : 'negative';
+
         return `
         <div class="saved-wallet-card">
             <div class="saved-wallet-info">
@@ -389,15 +391,18 @@ function renderSavedWallets(wallets) {
                     ${sourceBadge}
                 </div>
                 <div class="saved-wallet-address">${w.address}</div>
+                <div class="saved-wallet-stats-brief" style="display: flex; gap: 15px; margin-top: 5px; font-size: 0.9em;">
+                    <span class="${pnlClass}">$${(w.pnl || 0).toFixed(2)}</span>
+                    <span style="color: #888;">${(w.win_rate || 0).toFixed(1)}% WR</span>
+                </div>
                 <div class="saved-wallet-meta">
                     Saved: ${formatTime(w.saved_at)} |
-                    Alerts: ${w.total_alerts || 0} |
-                    Avg Score: ${(w.avg_suspicion_score || 0).toFixed(0)}
+                    Alerts: ${w.total_alerts || 0}
                 </div>
             </div>
             <div class="saved-wallet-actions">
                 <button class="btn btn-secondary btn-sm" onclick="viewWalletStats('${w.address}')">
-                    Stats
+                    Refresh
                 </button>
                 <button class="btn btn-primary btn-sm" onclick="followInsiderWallet('${w.address}')">
                     Follow

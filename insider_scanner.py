@@ -758,15 +758,22 @@ class InsiderScanner:
             if stats['pnl'] < -500: score = 10 # Bad performer
             
             if self.db_manager:
-                # Update saved_insider_wallets
+                # 🚀 Mise à jour complète du wallet avec les nouvelles stats
+                self.db_manager.save_insider_wallet({
+                    'address': wallet_address.lower(),
+                    'pnl': stats['pnl'],
+                    'win_rate': stats['win_rate'],
+                    'notes': f"Profilé le {datetime.now().strftime('%d/%m %H:%M')}"
+                })
+                
+                # Optionnel: On peut aussi garder l'update direct pour les champs spécifiques si besoin
                 self.db_manager._execute('''
                     UPDATE saved_insider_wallets
-                    SET avg_suspicion_score = ?, last_activity = ?, total_alerts = ?
+                    SET last_activity = ?, total_alerts = ?
                     WHERE address = ?
                 ''', (
-                    score, 
                     datetime.now().isoformat(),
-                    stats['total_trades'], # On utilise total_trades comme proxy pour "alerts" ou activité si on veut
+                    stats['total_trades'],
                     wallet_address.lower()
                 ), commit=True)
                 

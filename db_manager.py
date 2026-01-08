@@ -201,17 +201,25 @@ class DBManager:
                 last_activity TEXT,
                 total_alerts INTEGER DEFAULT 0,
                 avg_suspicion_score REAL DEFAULT 0,
+                pnl REAL DEFAULT 0,
+                win_rate REAL DEFAULT 0,
                 saved_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 source TEXT DEFAULT 'SCANNER' -- 'SCANNER' or 'MANUAL'
             )
         ''')
         c.execute('CREATE INDEX IF NOT EXISTS idx_saved_wallets_addr ON saved_insider_wallets(address)')
 
-        # Migration: Ajouter colonne source si elle n'existe pas
-        try:
-            c.execute('ALTER TABLE saved_insider_wallets ADD COLUMN source TEXT DEFAULT "SCANNER"')
-        except:
-            pass  # Colonne existe déjà
+        # Migration: Ajouter colonnes manquantes
+        migrations = [
+            ('source', 'TEXT DEFAULT "SCANNER"'),
+            ('pnl', 'REAL DEFAULT 0'),
+            ('win_rate', 'REAL DEFAULT 0')
+        ]
+        for col, col_type in migrations:
+            try:
+                c.execute(f'ALTER TABLE saved_insider_wallets ADD COLUMN {col} {col_type}')
+            except:
+                pass  # Colonne existe déjà
 
         self.conn.commit()
         
@@ -634,29 +642,26 @@ class DBManager:
             alerts.append(alert)
         return alerts
 
-    def save_insider_wallet(self, wallet_data: Dict, source: str = 'SCANNER') -> int:
-        """Sauvegarde un wallet pour le tracking insider
-
-        Args:
-            wallet_data: {address, nickname, notes}
-            source: 'SCANNER' ou 'MANUAL'
-
-        Returns:
-            ID du wallet créé
-        """
-        cursor = self._execute('''
-            INSERT OR REPLACE INTO saved_insider_wallets
-            (address, nickname, notes, saved_at, source)
-            VALUES (?, ?, ?, ?, ?)
+    def save_insider_wallet(self, wallet_data: Dict, source: str = 'SCANNER'):
+        """Sauvegarde ou met à jour un wallet suspect"""
+        self._execute('''
+            INSERT INTO saved_insider_wallets (address, nickname, notes, source, pnl, win_rate)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(address) DO UPDATE SET
+                nickname = excluded.nickname,
+                notes = excluded.notes,
+                source = excluded.source,
+                pnl = excluded.pnl,
+                win_rate = excluded.win_rate
         ''', (
             wallet_data.get('address', '').lower(),
             wallet_data.get('nickname', ''),
             wallet_data.get('notes', ''),
-            datetime.now().isoformat(),
-            source
+            source,
+            wallet_data.get('pnl', 0),
+            wallet_data.get('win_rate', 0)
         ), commit=True)
-
-        return cursor.lastrowid if cursor else 0
+        return wallet_data.get('address')
 
     def get_saved_insider_wallets(self) -> List[Dict]:
         """Récupère tous les wallets insider sauvegardés"""

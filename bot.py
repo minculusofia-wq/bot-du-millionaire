@@ -1006,6 +1006,11 @@ def sync_tracked_wallets():
                 'nickname': w.get('name', 'Wallet Sync'),
                 'notes': 'Synchronisé au démarrage depuis config.json'
             }, source='MANUAL')
+            
+            # 🚀 Lancer un scan/profiling en background pour récupérer les stats réelles
+            if insider_scanner:
+                threading.Thread(target=insider_scanner.profile_wallet, args=(address,), daemon=True).start()
+                
             synced_count += 1
             
         if synced_count > 0:
