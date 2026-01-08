@@ -26,9 +26,11 @@
 5. **Paramètres** - Configuration API et gestion des risques
 
 ### ✨ Nouveautés v2.4 (Dernière Mise à Jour)
-- **🔍 Intégration Polygonscan** : Configuration directe de la clé API Polygonscan via l'interface web pour un historique complet et précis des transactions blockchain.
-- **🎨 Interface Adaptative** : Fenêtres de configuration (modals) désormais entièrement scrollables, garantissant une ergonomie parfaite sur tous les types d'écrans.
-- **🛠️ Robustesse Backend** : Amélioration de la validation des identifiants et de la structure des réponses API pour une synchronisation fluide entre le bot et le dashboard.
+- **🔍 Insider Scanner v2.4** : Intégration profonde de la blockchain via **Goldsky** et **Polygonscan** pour une analyse précise des positions et du PnL des wallets.
+- **📊 Stats Persistantes** : Les wallets sauvegardés mémorisent désormais leur **PnL** et **WinRate** en base de données, avec affiche direct sur les cartes de l'interface.
+- **🔄 Synchronisation Auto** : Vos wallets suivis pour le Copy Trading sont automatiquement synchronisés avec le module Insider au démarrage.
+- **🎨 Interface Adaptative** : Fenêtres de configuration (modals) désormais entièrement scrollables et badges de source (`SCANNER` / `MANUAL`) ajoutés.
+- **🛠️ Robustesse Backend** : Profilage en arrière-plan et réconciliation automatique des données pour une expérience fluide.
 
 ### ⚡ Optimisations v2.2
 - **🛡️ Sécurité Maximale (Machine Binding)** : Vos identifiants sont désormais physiquement liés à votre matériel (UUID). Même en cas de vol du fichier `.env`, ils sont indéchiffrables sur une autre machine.
