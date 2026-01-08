@@ -201,10 +201,17 @@ class DBManager:
                 last_activity TEXT,
                 total_alerts INTEGER DEFAULT 0,
                 avg_suspicion_score REAL DEFAULT 0,
-                saved_at TEXT DEFAULT CURRENT_TIMESTAMP
+                saved_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                source TEXT DEFAULT 'SCANNER' -- 'SCANNER' or 'MANUAL'
             )
         ''')
         c.execute('CREATE INDEX IF NOT EXISTS idx_saved_wallets_addr ON saved_insider_wallets(address)')
+
+        # Migration: Ajouter colonne source si elle n'existe pas
+        try:
+            c.execute('ALTER TABLE saved_insider_wallets ADD COLUMN source TEXT DEFAULT "SCANNER"')
+        except:
+            pass  # Colonne existe déjà
 
         self.conn.commit()
         
@@ -627,24 +634,26 @@ class DBManager:
             alerts.append(alert)
         return alerts
 
-    def save_insider_wallet(self, wallet_data: Dict) -> int:
+    def save_insider_wallet(self, wallet_data: Dict, source: str = 'SCANNER') -> int:
         """Sauvegarde un wallet pour le tracking insider
 
         Args:
             wallet_data: {address, nickname, notes}
+            source: 'SCANNER' ou 'MANUAL'
 
         Returns:
             ID du wallet créé
         """
         cursor = self._execute('''
             INSERT OR REPLACE INTO saved_insider_wallets
-            (address, nickname, notes, saved_at)
-            VALUES (?, ?, ?, ?)
+            (address, nickname, notes, saved_at, source)
+            VALUES (?, ?, ?, ?, ?)
         ''', (
             wallet_data.get('address', '').lower(),
             wallet_data.get('nickname', ''),
             wallet_data.get('notes', ''),
-            datetime.now().isoformat()
+            datetime.now().isoformat(),
+            source
         ), commit=True)
 
         return cursor.lastrowid if cursor else 0

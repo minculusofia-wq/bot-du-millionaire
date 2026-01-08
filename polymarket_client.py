@@ -221,6 +221,47 @@ class PolymarketClient:
             logger.error(f"Erreur get_market: {e}")
             return None
 
+    @cached(ttl=10, key_prefix="trades:")
+    def get_trades(self, token_id: str, limit: int = 20) -> List[Dict]:
+        """Récupère les trades récents pour un token (Authentifié)."""
+        try:
+            # 1. Utilisation de py-clob-client (Préco)
+            if self.client:
+                # py-clob-client: get_trades(market_token_id, maker_address=None, taker_address=None, side=None, limit=None, before=None, after=None)
+                # Note: La signature exacte dépend de la version, mais souvent c'est token_id en premier ou params nommés.
+                # Essayons avec token_id et limit (kwargs pour etre sur)
+                try:
+                    return self.client.get_trades(market_token_id=token_id, limit=limit)
+                except Exception as e:
+                    # Retry with generic args if named arg fails (version diff)
+                    logger.debug(f"py-clob get_trades named arg mismatch, trying positional: {e}")
+                    return self.client.get_trades(token_id)
+
+            # 2. REST Fallback (Si pas de client officiel)
+            path = "/trades"
+            params = {'token_id': token_id, 'limit': str(limit)}
+            
+            # Signature pour GET avec Query Params est complexe sur CLOB.
+            # Souvent c'est timestamp + method + path (SANS query) + body
+            # Ou timestamp + method + path (AVEC query) + body
+            # Les tests précédents ont échoué avec les deux.
+            # D'après docs: "The request path must include the query parameters."
+            
+            query = f"?token_id={token_id}&limit={limit}"
+            full_path = path + query
+            
+            headers = self._sign_request('GET', full_path)
+            resp = self.session.get(f"{self.CLOB_HOST}{path}", params=params, headers=headers, timeout=10)
+            
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                logger.warning(f"⚠️ get_trades failed: {resp.status_code} {resp.text}")
+                return []
+        except Exception as e:
+            logger.error(f"Erreur get_trades: {e}")
+            return []
+
     # =========================================================================
     # TRADING & ORDERS
     # =========================================================================

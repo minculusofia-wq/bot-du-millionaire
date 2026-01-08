@@ -188,7 +188,9 @@ class InsiderScanner:
             params = {
                 'limit': limit,
                 'active': 'true',
-                'tag': category
+                'tag': category,
+                'order': 'volume',
+                'ascending': 'false'
             }
             resp = requests.get(f"{self.GAMMA_API}/markets", params=params, timeout=10)
             if resp.status_code == 200:
@@ -634,6 +636,142 @@ class InsiderScanner:
         """Arrete la boucle de scan"""
         self.running = False
         logger.info("🛑 Insider Scanner arrete")
+
+    def get_wallet_positions(self, address: str) -> List[Dict]:
+        """Recupere les positions d'un wallet via Goldsky"""
+        query = """
+        {
+          userBalances(first: 100, where: {user: "%s", balance_gt: 0}) {
+            id
+            balance
+            cost
+            asset {
+              id
+              symbol
+              condition {
+                id
+                slug
+                question
+              }
+            }
+          }
+        }
+        """ % address.lower()
+
+        try:
+            resp = requests.post(self.GOLDSKY_POSITIONS, json={'query': query}, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get('data', {}).get('userBalances', [])
+        except Exception as e:
+            logger.debug(f"Error getting wallet positions: {e}")
+        return []
+
+    def get_wallet_tx_history(self, address: str, limit: int = 20) -> List[Dict]:
+        """Recupere l'historique des transactions via Polygonscan"""
+        if not self.polygonscan_api_key:
+            return []
+
+        try:
+            params = {
+                'module': 'account',
+                'action': 'txlist',
+                'address': address,
+                'page': 1,
+                'offset': limit,
+                'sort': 'desc',
+                'apikey': self.polygonscan_api_key
+            }
+            resp = requests.get(self.POLYGONSCAN_API, params=params, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get('status') == '1':
+                    return data.get('result', [])
+        except Exception as e:
+            logger.debug(f"Polygonscan history error: {e}")
+        return []
+
+    def _analyze_wallet_stats(self, address: str, positions: List[Dict], activity: Optional[datetime], history: List[Dict]) -> Dict:
+        """Analyse les donnees brutes pour generer des statistiques complètes"""
+        stats = {
+            'pnl': 0.0,
+            'win_rate': 0.0,
+            'roi': 0.0,
+            'total_trades': 0,
+            'active_positions': len(positions),
+            'last_activity': activity.isoformat() if activity else None,
+            'tx_count': len(history) if self.polygonscan_api_key else 0
+        }
+
+        # Calcul PnL et Winrate basique sur les positions actuelles (unrealized + realized mix via cost)
+        total_cost = 0
+        total_value = 0
+        wins = 0
+        
+        for pos in positions:
+            balance = float(pos.get('balance', 0)) / 1e6
+            cost = float(pos.get('cost', 0)) / 1e6
+            
+            if balance > 0.01:
+                stats['total_trades'] += 1
+                total_cost += cost
+                total_value += balance
+                if balance > cost:
+                    wins += 1
+
+        stats['pnl'] = round(total_value - total_cost, 2)
+        if stats['total_trades'] > 0:
+            stats['win_rate'] = round((wins / stats['total_trades']) * 100, 1)
+        if total_cost > 0:
+            stats['roi'] = round(((total_value - total_cost) / total_cost) * 100, 1)
+
+        # Si on a l'historique Polygonscan, on pourrait affiner le tx_count
+        # Mais pour l'instant on utilise ce qu'on a.
+        return stats
+
+    def profile_wallet(self, wallet_address: str):
+        """Profile un wallet à la demande (sans créer d'alerte)"""
+        if not wallet_address:
+            return
+
+        logger.info(f"🔍 Profiling manuel du wallet: {wallet_address}")
+        self._scan_specific_wallet(wallet_address)
+
+    def _scan_specific_wallet(self, wallet_address: str):
+        """Scanne un wallet spécifique et met à jour ses stats en DB"""
+        try:
+            # 1. Recuperer les donnees
+            last_activity = self.get_wallet_last_activity(wallet_address)
+            positions = self.get_wallet_positions(wallet_address)
+            tx_history = self.get_wallet_tx_history(wallet_address)
+            
+            # 2. Analyser
+            stats = self._analyze_wallet_stats(wallet_address, positions, last_activity, tx_history)
+            
+            logger.info(f"📊 Stats profiling {wallet_address}: PnL=${stats['pnl']} WinRate={stats['win_rate']}%")
+
+            # 3. Mettre a jour la DB
+            # On calcule un score indicatif
+            score = 0
+            if stats['pnl'] > 1000 and stats['win_rate'] > 60: score = 60
+            if stats['pnl'] > 5000 and stats['win_rate'] > 70: score = 80
+            if stats['pnl'] < -500: score = 10 # Bad performer
+            
+            if self.db_manager:
+                # Update saved_insider_wallets
+                self.db_manager._execute('''
+                    UPDATE saved_insider_wallets
+                    SET avg_suspicion_score = ?, last_activity = ?, total_alerts = ?
+                    WHERE address = ?
+                ''', (
+                    score, 
+                    datetime.now().isoformat(),
+                    stats['total_trades'], # On utilise total_trades comme proxy pour "alerts" ou activité si on veut
+                    wallet_address.lower()
+                ), commit=True)
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur scan spécifique {wallet_address}: {e}")
 
     def get_stats(self) -> Dict:
         """Retourne les statistiques du scanner"""

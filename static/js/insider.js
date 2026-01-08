@@ -13,21 +13,21 @@ function toggleInsiderScanner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled })
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            updateInsiderStatus(data.running);
-            console.log('Scanner:', data.running ? 'Started' : 'Stopped');
-        } else {
-            alert('Erreur: ' + (data.error || 'Unknown'));
-            // Reset toggle
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                updateInsiderStatus(data.running);
+                console.log('Scanner:', data.running ? 'Started' : 'Stopped');
+            } else {
+                alert('Erreur: ' + (data.error || 'Unknown'));
+                // Reset toggle
+                document.getElementById('insider-scanner-toggle').checked = !enabled;
+            }
+        })
+        .catch(e => {
+            console.error('Toggle scanner error:', e);
             document.getElementById('insider-scanner-toggle').checked = !enabled;
-        }
-    })
-    .catch(e => {
-        console.error('Toggle scanner error:', e);
-        document.getElementById('insider-scanner-toggle').checked = !enabled;
-    });
+        });
 }
 
 function updateInsiderStatus(running) {
@@ -44,24 +44,24 @@ function triggerManualScan() {
     btn.textContent = 'Scanning...';
 
     fetch('/api/insider/scan_now', { method: 'POST' })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            alert(`Scan termine: ${data.alerts_found} alerte(s) trouvee(s)`);
-            loadInsiderAlerts();
-            loadInsiderStats();
-        } else {
-            alert('Erreur: ' + (data.error || 'Unknown'));
-        }
-    })
-    .catch(e => {
-        console.error('Manual scan error:', e);
-        alert('Erreur de scan');
-    })
-    .finally(() => {
-        btn.disabled = false;
-        btn.textContent = 'Scan Manuel';
-    });
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Scan termine: ${data.alerts_found} alerte(s) trouvee(s)`);
+                loadInsiderAlerts();
+                loadInsiderStats();
+            } else {
+                alert('Erreur: ' + (data.error || 'Unknown'));
+            }
+        })
+        .catch(e => {
+            console.error('Manual scan error:', e);
+            alert('Erreur de scan');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.textContent = 'Scan Manuel';
+        });
 }
 
 // ============ CONFIGURATION ============
@@ -128,93 +128,93 @@ function saveInsiderConfig() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            alert('Configuration sauvegardee!');
-        } else {
-            alert('Erreur: ' + (data.error || 'Unknown'));
-        }
-    })
-    .catch(e => {
-        console.error('Save config error:', e);
-        alert('Erreur de sauvegarde');
-    });
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Configuration sauvegardee!');
+            } else {
+                alert('Erreur: ' + (data.error || 'Unknown'));
+            }
+        })
+        .catch(e => {
+            console.error('Save config error:', e);
+            alert('Erreur de sauvegarde');
+        });
 }
 
 // ============ LOAD DATA ============
 
 function loadInsiderConfig() {
     fetch('/api/insider/config')
-    .then(r => r.json())
-    .then(data => {
-        if (!data.success) return;
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
 
-        const config = data.config;
+            const config = data.config;
 
-        // Toggle scanner
-        const toggle = document.getElementById('insider-scanner-toggle');
-        if (toggle) toggle.checked = config.running;
+            // Toggle scanner
+            const toggle = document.getElementById('insider-scanner-toggle');
+            if (toggle) toggle.checked = config.running;
 
-        // Preset
-        const preset = document.getElementById('insider-preset');
-        if (preset) preset.value = config.scoring_preset || 'balanced';
+            // Preset
+            const preset = document.getElementById('insider-preset');
+            if (preset) preset.value = config.scoring_preset || 'balanced';
 
-        // Threshold
-        const threshold = document.getElementById('insider-threshold');
-        if (threshold) threshold.value = config.alert_threshold || 60;
+            // Threshold
+            const threshold = document.getElementById('insider-threshold');
+            if (threshold) threshold.value = config.alert_threshold || 60;
 
-        // Categories
-        const categories = config.enabled_categories || config.categories || [];
-        document.querySelectorAll('.category-toggle').forEach(el => {
-            if (categories.includes(el.dataset.category)) {
-                el.classList.add('active');
-            } else {
-                el.classList.remove('active');
-            }
+            // Categories
+            const categories = config.enabled_categories || config.categories || [];
+            document.querySelectorAll('.category-toggle').forEach(el => {
+                if (categories.includes(el.dataset.category)) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+
+            // Status
+            updateInsiderStatus(config.running);
+
+            // Custom weights section visibility
+            onInsiderPresetChange();
         });
-
-        // Status
-        updateInsiderStatus(config.running);
-
-        // Custom weights section visibility
-        onInsiderPresetChange();
-    });
 }
 
 function loadInsiderStats() {
     fetch('/api/insider/stats')
-    .then(r => r.json())
-    .then(data => {
-        if (!data.success) return;
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
 
-        const stats = data.stats;
+            const stats = data.stats;
 
-        const alertsCount = document.getElementById('insider-alerts-count');
-        if (alertsCount) alertsCount.textContent = stats.alerts_generated || 0;
+            const alertsCount = document.getElementById('insider-alerts-count');
+            if (alertsCount) alertsCount.textContent = stats.alerts_generated || 0;
 
-        const marketsCount = document.getElementById('insider-markets-count');
-        if (marketsCount) marketsCount.textContent = stats.markets_scanned || 0;
+            const marketsCount = document.getElementById('insider-markets-count');
+            if (marketsCount) marketsCount.textContent = stats.markets_scanned || 0;
 
-        const lastScan = document.getElementById('insider-last-scan');
-        if (lastScan) {
-            lastScan.textContent = stats.last_scan
-                ? new Date(stats.last_scan).toLocaleTimeString()
-                : 'Never';
-        }
+            const lastScan = document.getElementById('insider-last-scan');
+            if (lastScan) {
+                lastScan.textContent = stats.last_scan
+                    ? new Date(stats.last_scan).toLocaleTimeString()
+                    : 'Never';
+            }
 
-        updateInsiderStatus(stats.running);
-    });
+            updateInsiderStatus(stats.running);
+        });
 }
 
 function loadInsiderAlerts() {
     fetch('/api/insider/alerts?limit=50')
-    .then(r => r.json())
-    .then(data => {
-        if (!data.success) return;
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
 
-        renderAlertFeed(data.alerts);
-    });
+            renderAlertFeed(data.alerts);
+        });
 }
 
 function renderAlertFeed(alerts) {
@@ -232,7 +232,7 @@ function renderAlertFeed(alerts) {
 
     container.innerHTML = alerts.map(alert => {
         const scoreClass = alert.suspicion_score >= 80 ? 'high' :
-                          alert.suspicion_score >= 60 ? 'medium' : 'low';
+            alert.suspicion_score >= 60 ? 'medium' : 'low';
 
         const criteriaHtml = (alert.criteria_matched || []).map(c =>
             `<span class="criteria-badge ${c}">${formatCriteria(c)}</span>`
@@ -336,31 +336,31 @@ function saveInsiderWallet(address) {
             nickname: nickname || ''
         })
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            alert('Wallet sauvegarde!');
-            loadSavedWallets();
-        } else {
-            alert('Erreur: ' + (data.error || 'Unknown'));
-        }
-    })
-    .catch(e => {
-        console.error('Save wallet error:', e);
-        alert('Erreur de sauvegarde');
-    });
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Wallet sauvegarde!');
+                loadSavedWallets();
+            } else {
+                alert('Erreur: ' + (data.error || 'Unknown'));
+            }
+        })
+        .catch(e => {
+            console.error('Save wallet error:', e);
+            alert('Erreur de sauvegarde');
+        });
 }
 
 // ============ SAVED WALLETS ============
 
 function loadSavedWallets() {
     fetch('/api/insider/saved')
-    .then(r => r.json())
-    .then(data => {
-        if (!data.success) return;
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
 
-        renderSavedWallets(data.wallets);
-    });
+            renderSavedWallets(data.wallets);
+        });
 }
 
 function renderSavedWallets(wallets) {
@@ -376,10 +376,18 @@ function renderSavedWallets(wallets) {
         return;
     }
 
-    container.innerHTML = wallets.map(w => `
+    container.innerHTML = wallets.map(w => {
+        const sourceBadge = w.source === 'MANUAL'
+            ? '<span class="source-badge manual">MANUAL</span>'
+            : '<span class="source-badge scanner">SCANNER</span>';
+
+        return `
         <div class="saved-wallet-card">
             <div class="saved-wallet-info">
-                <div class="saved-wallet-nickname">${escapeHtml(w.nickname) || 'Unnamed Wallet'}</div>
+                <div class="saved-wallet-header" style="display: flex; align-items: center; gap: 8px;">
+                    <div class="saved-wallet-nickname">${escapeHtml(w.nickname) || 'Unnamed Wallet'}</div>
+                    ${sourceBadge}
+                </div>
                 <div class="saved-wallet-address">${w.address}</div>
                 <div class="saved-wallet-meta">
                     Saved: ${formatTime(w.saved_at)} |
@@ -399,16 +407,16 @@ function renderSavedWallets(wallets) {
                 </button>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 }
 
 function viewWalletStats(address) {
     fetch(`/api/insider/wallet_stats/${address}`)
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            const stats = data.stats;
-            alert(`
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const stats = data.stats;
+                alert(`
 Wallet: ${truncateAddress(address)}
 
 PnL: $${(stats.pnl || 0).toFixed(2)}
@@ -418,24 +426,24 @@ Total Trades: ${stats.total_trades || 0}
 
 Alertes enregistrees: ${data.alerts_count || 0}
             `);
-        } else {
-            alert('Erreur: ' + (data.error || 'Unknown'));
-        }
-    });
+            } else {
+                alert('Erreur: ' + (data.error || 'Unknown'));
+            }
+        });
 }
 
 function removeSavedWallet(address) {
     if (!confirm('Retirer ce wallet de la liste?')) return;
 
     fetch(`/api/insider/saved/${address}`, { method: 'DELETE' })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            loadSavedWallets();
-        } else {
-            alert('Erreur: ' + (data.error || 'Unknown'));
-        }
-    });
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                loadSavedWallets();
+            } else {
+                alert('Erreur: ' + (data.error || 'Unknown'));
+            }
+        });
 }
 
 // ============ WEBSOCKET ============

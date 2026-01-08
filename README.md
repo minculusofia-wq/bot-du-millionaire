@@ -25,7 +25,7 @@
 4. **Historique** - Historique complet des trades et PnL
 5. **Paramètres** - Configuration API et gestion des risques
 
-### ✨ Nouveautés v2.3 (Dernière Mise à Jour)
+### ✨ Nouveautés v2.4 (Dernière Mise à Jour)
 - **🔍 Intégration Polygonscan** : Configuration directe de la clé API Polygonscan via l'interface web pour un historique complet et précis des transactions blockchain.
 - **🎨 Interface Adaptative** : Fenêtres de configuration (modals) désormais entièrement scrollables, garantissant une ergonomie parfaite sur tous les types d'écrans.
 - **🛠️ Robustesse Backend** : Amélioration de la validation des identifiants et de la structure des réponses API pour une synchronisation fluide entre le bot et le dashboard.

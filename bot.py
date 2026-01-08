@@ -397,6 +397,24 @@ def api_wallets_add():
         })
         backend.save_config_sync()
 
+        # ✅ UNIFICATION: Sauvegarder aussi dans la DB Insider
+        # Source = MANUAL
+        try:
+            db_manager.save_insider_wallet({
+                'address': address,
+                'nickname': name,
+                'notes': 'Ajouté manuellement via Copy Trading'
+            }, source='MANUAL')
+            
+            # 🚀 Lancer un scan immédiat via l'Insider Scanner
+            if insider_scanner:
+                # On lance le profiling en background pour ne pas bloquer l'API
+                threading.Thread(target=insider_scanner.profile_wallet, args=(address,)).start()
+                
+            print(f"✅ Wallet {address[:8]}... synchronisé avec DB Insider + Scan lancé")
+        except Exception as e:
+            print(f"⚠️ Erreur sync DB Insider: {e}")
+
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
