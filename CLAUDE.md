@@ -20,26 +20,29 @@
 ## 🎯 Vue d'Ensemble du Projet
 
 ### Description
-**Bot du Millionnaire** est un bot de copy trading automatisé pour la blockchain Solana avec interface web moderne. Il permet de copier automatiquement les trades de traders sélectionnés avec gestion avancée du risque (TP/SL), backtesting et benchmarking.
+**Bot du Millionnaire** est un bot de copy trading automatisé pour **Polymarket** (marchés de prédiction sur Polygon) avec interface web moderne. Il permet de copier automatiquement les trades de wallets sélectionnés avec gestion avancée du risque (TP/SL), backtesting, benchmarking et détection d'insiders.
 
 ### État Actuel
-- **Version**: 4.0.0 (Phase 8 complétée)
+- **Version**: 5.0.0 (Module Insider Tracker)
 - **Statut**: ✅ Production-Ready
 - **Langage**: Python 3.9+
-- **Framework Web**: Flask 3.0.0
+- **Framework Web**: Flask 3.0.0 + Flask-SocketIO
 - **Base de données**: SQLite
-- **Blockchain**: Solana (via Helius API)
+- **Blockchain**: Polygon (via Alchemy RPC)
+- **Plateforme**: Polymarket (via CLOB API + Gamma API)
 
 ### Fonctionnalités Principales
-- ✅ Copy trading automatique de 2 traders simultanément (limite configurable)
+- ✅ Copy trading automatique sur Polymarket (wallets configurables)
 - ✅ Take Profit / Stop Loss automatiques
 - ✅ Backtesting avec 30+ combinaisons de paramètres
 - ✅ Benchmark: comparaison Bot vs Traders
 - ✅ Auto-sell intelligent (mode mirror si TP/SL = 0)
 - ✅ Mode TEST (simulation) et MODE REAL (transactions réelles)
 - ✅ Monitoring en temps réel avec métriques
-- ✅ Interface web responsive (6 onglets)
-- ✅ Optimisations performance (Phase 8): Batch RPC, Workers, Smart TP/SL, Arbitrage
+- ✅ Interface web responsive (8 onglets)
+- ✅ **Insider Tracker**: Détection de wallets suspects avec scoring configurable
+- ✅ **Saved Wallets**: Sauvegarde et suivi des wallets d'intérêt
+- ✅ WebSocket temps réel pour alertes instantanées
 
 ---
 
@@ -61,14 +64,16 @@ bot-du-millionaire/
 │   ├── backtesting_engine.py           # Moteur de backtesting multi-paramètres
 │   └── benchmark_system.py             # Système de benchmark Bot vs Traders
 │
-├── 🔗 BLOCKCHAIN & EXECUTION
-│   ├── solana_executor.py              # Exécution transactions Solana réelles
-│   ├── solana_integration.py           # Intégration Solana RPC
-│   ├── helius_integration.py           # API Helius pour données enrichies
-│   ├── helius_polling.py               # Polling transactions Helius
-│   ├── helius_websocket.py             # WebSocket Helius (temps réel)
-│   ├── dex_handler.py                  # Support multi-DEX (Raydium, Orca, Jupiter)
-│   └── magic_eden_api.py               # API Magic Eden (NFTs)
+├── 🔗 POLYMARKET & POLYGON
+│   ├── polymarket_tracking.py          # Suivi positions Polymarket via Goldsky
+│   ├── polymarket_executor.py          # Exécution trades Polymarket CLOB
+│   ├── polymarket_clob.py              # Client CLOB API Polymarket
+│   ├── polygon_websocket.py            # WebSocket Polygon temps réel
+│   └── polygonscan_api.py              # API Polygonscan pour historique
+│
+├── 🔍 INSIDER DETECTION
+│   ├── insider_scanner.py              # Moteur détection insiders (scoring)
+│   └── insider_routes.py               # Routes API module insider
 │
 ├── 🛡️ SÉCURITÉ & VALIDATION
 │   ├── trade_validator.py              # Validation 3 niveaux (STRICT/NORMAL/RELAXED)
@@ -138,11 +143,11 @@ bot-du-millionaire/
 └────────┬───────────────────────────────────────────┘
          │
 ┌────────▼───────────────────────────────────────────┐
-│        BLOCKCHAIN LAYER (Solana + Helius)          │
-│  • helius_polling.py (Récupération transactions)  │
-│  • helius_websocket.py (Temps réel ~100-200ms)   │
-│  • solana_executor.py (Exécution trades réels)    │
-│  • dex_handler.py (Multi-DEX: Raydium/Orca/Jupiter)│
+│     POLYMARKET LAYER (Polygon + CLOB API)          │
+│  • polymarket_tracking.py (Positions Goldsky)     │
+│  • polygon_websocket.py (Temps réel ~100-200ms)  │
+│  • polymarket_executor.py (Exécution CLOB)        │
+│  • insider_scanner.py (Détection insiders)        │
 └────────┬───────────────────────────────────────────┘
          │
 ┌────────▼───────────────────────────────────────────┐
@@ -199,34 +204,39 @@ bot-du-millionaire/
 - `_validate_config()` - Valide les champs requis
 - `initialize_test_prices()` - Prix simulés pour MODE TEST
 
-### 3. `portfolio_tracker.py` - Suivi Portefeuilles
-**Rôle**: Surveille les portefeuilles des traders en temps réel
+### 3. `polymarket_tracking.py` - Suivi Positions Polymarket
+**Rôle**: Surveille les positions des wallets sur Polymarket en temps réel
 
 **Responsabilités**:
-- Polling régulier des adresses Solana
-- Détection des nouveaux trades
+- Récupération des positions via Goldsky Subgraph
+- Détection des nouvelles positions et trades
 - Calcul du PnL (Profit & Loss)
 - Historique des performances (24h, 7j, 30j)
 
 **Fonctionnalités**:
-- Récupère les transactions via Helius API
-- Parse les swaps et tokens achetés/vendus
-- Calcule le PnL en temps réel
-- Nettoie l'historique après 8 jours
+- Récupère les positions via Goldsky GraphQL API
+- Parse les achats/ventes de shares Polymarket
+- Calcule le PnL en temps réel par marché
+- Support multi-wallets simultané
 
-### 4. `copy_trading_simulator.py` - Simulation Copy Trading
-**Rôle**: Simule le copy trading en MODE TEST avec données réelles
+### 4. `insider_scanner.py` - Détection Insiders
+**Rôle**: Scanne les marchés Polymarket pour détecter des comportements suspects
 
 **Responsabilités**:
-- Récupère les VRAIES transactions des traders via Helius
-- Simule les mêmes trades avec capital fictif (1000$)
-- Calcule le PnL réel de la simulation
-- Support complet MODE TEST
+- Analyse des paris sur marchés actifs via Gamma API
+- Scoring de suspicion configurable (0-100)
+- Détection multi-critères (Unlikely Bet, Abnormal Behavior, Suspicious Profile)
+- Alertes temps réel via WebSocket
+
+**Critères de détection (configurables)**:
+- **Unlikely Bet**: Gros paris sur outcomes improbables
+- **Abnormal Behavior**: Wallet dormant qui fait un gros pari
+- **Suspicious Profile**: Nouveau wallet avec paris importants
 
 **Points d'attention**:
-- Utilise les données réelles pour la simulation
-- Capital fictif de 1000$ par défaut
-- Permet de tester sans risque
+- Poids configurables par l'utilisateur (presets + custom)
+- Seuils de détection personnalisables
+- Déduplication 1h par wallet+marché
 
 ### 5. `auto_sell_manager.py` - Vente Automatique
 **Rôle**: Gère la vente automatique (principale) et manuelle (bonus)
@@ -264,19 +274,19 @@ else:
 - Classe les traders avec médailles (🥇🥈🥉)
 - Identifie le meilleur trader automatiquement
 
-### 8. `solana_executor.py` - Exécution Solana
-**Rôle**: Exécute les transactions Solana réelles (MODE REAL uniquement)
+### 8. `polymarket_executor.py` - Exécution Polymarket
+**Rôle**: Exécute les trades Polymarket via CLOB API (MODE REAL uniquement)
 
 **Responsabilités**:
-- Signature et envoi des transactions
-- Gestion du wallet (clé privée)
-- Validation des transactions
-- Retry en cas d'échec
+- Création et signature des ordres CLOB
+- Gestion du wallet Polygon (clé privée chiffrée)
+- Validation des ordres avant envoi
+- Retry automatique en cas d'échec
 
 **Sécurité**:
-- Clé privée stockée en mémoire uniquement
-- Jamais sauvegardée sur disque
-- Validation avant chaque transaction
+- Clé privée chiffrée avec machine binding
+- Jamais stockée en clair sur disque
+- Validation multi-niveaux avant exécution
 
 ### 9. `trade_validator.py` - Validation
 **Rôle**: Valide les trades avant exécution (3 niveaux)
@@ -288,7 +298,7 @@ else:
 
 **Vérifications**:
 - Montants valides (> 0, <= capital disponible)
-- Adresses Solana valides
+- Adresses Polygon valides (format 0x...)
 - Slippage acceptable
 - Limites de position respectées
 
@@ -473,20 +483,33 @@ async function appelNouvelleRoute() {
 ### Variables d'Environnement (`.env`)
 
 ```bash
-# API Helius (OBLIGATOIRE pour données blockchain)
-HELIUS_API_KEY=votre_cle_helius_ici
+# Polymarket CLOB API (OBLIGATOIRE pour trading)
+POLYMARKET_API_KEY="votre_api_key_polymarket"
+POLYMARKET_SECRET="votre_secret_polymarket"
+POLYMARKET_PASSPHRASE="votre_passphrase_polymarket"
 
-# RPC Solana (optionnel, défaut: api.mainnet-beta.solana.com)
-RPC_URL=https://api.mainnet-beta.solana.com
+# Polygon RPC (via Alchemy - recommandé)
+ALCHEMY_API_KEY="votre_api_key_alchemy"
+
+# Clé privée Polygon (chiffrée par le système)
+POLYGON_PRIVATE_KEY="cle_chiffree_par_le_bot"
+
+# Polygonscan API (optionnel - pour historique tx)
+POLYGONSCAN_API_KEY="votre_api_key_polygonscan"
 
 # Port Flask (optionnel, défaut: 5000)
 PORT=5000
 ```
 
-**Comment obtenir une clé Helius**:
-1. Aller sur https://helius.dev
+**Comment configurer Polymarket**:
+1. Aller sur https://polymarket.com
+2. Dans Settings > API Keys, créer une clé API
+3. Copier API Key, Secret et Passphrase dans `.env`
+
+**Comment obtenir une clé Alchemy**:
+1. Aller sur https://alchemy.com
 2. Créer un compte gratuit
-3. Créer un projet Solana
+3. Créer une app Polygon Mainnet
 4. Copier la clé API dans `.env`
 
 ### Installation
@@ -498,7 +521,7 @@ cd bot-du-millionaire
 
 # 2. Créer .env depuis .env.example
 cp .env.example .env
-# Éditer .env et ajouter votre HELIUS_API_KEY
+# Éditer .env et ajouter vos clés Polymarket + Alchemy
 
 # 3. Installer les dépendances
 pip install -r requirements.txt
@@ -512,11 +535,15 @@ python bot.py
 ### Dépendances Python
 
 ```
-flask==3.0.0          # Framework web
-requests==2.31.0      # Requêtes HTTP
+flask==3.0.0           # Framework web
+flask-socketio==5.3.0  # WebSocket temps réel
+requests==2.31.0       # Requêtes HTTP
+py-clob-client         # Client Polymarket CLOB
+web3                   # Interactions Polygon
+cryptography           # Chiffrement clés privées
 ```
 
-**Note**: Les dépendances sont volontairement minimales. Les imports Solana (`solders`, `solana`) sont optionnels et gérés avec des try/except.
+**Note**: Les dépendances Polymarket sont gérées avec des try/except pour permettre le mode TEST sans configuration complète.
 
 ---
 
@@ -741,15 +768,16 @@ result = trade_validator.validate(trade_params, TradeValidationLevel.RELAXED)
 
 **MODE TEST** (recommandé pour développement):
 - ✅ Simulation complète sans transactions réelles
-- ✅ Données réelles des traders (via Helius)
+- ✅ Données réelles des marchés Polymarket
 - ✅ Capital fictif de 1000$
 - ✅ Pas de risque financier
 - ✅ Logique identique au MODE REAL
+- ✅ Insider Tracker fonctionne en temps réel
 
 **MODE REAL** (production uniquement):
-- ⚠️ Exécution de vraies transactions Solana
+- ⚠️ Exécution de vraies transactions Polymarket/Polygon
 - ⚠️ Risque de perte financière
-- ⚠️ Nécessite une clé privée
+- ⚠️ Nécessite clés API Polymarket + clé privée Polygon
 - ⚠️ À utiliser avec extrême prudence
 
 ### Tester une Modification
@@ -855,6 +883,21 @@ POST /api/disconnect_wallet     # Déconnecter wallet
 GET  /api/wallet_balance        # Balance du wallet
 ```
 
+#### Insider Tracker
+```
+GET  /api/insider/alerts        # Feed d'alertes (limit, min_score)
+GET  /api/insider/markets       # Marchés scannés
+POST /api/insider/save_wallet   # Sauvegarder wallet suspect
+GET  /api/insider/saved         # Liste wallets sauvegardés
+DELETE /api/insider/saved/<addr># Supprimer wallet sauvegardé
+GET  /api/insider/wallet_stats  # Stats performance wallet
+GET  /api/insider/config        # Config complète scanner
+POST /api/insider/config        # Modifier config scoring
+POST /api/insider/toggle        # Start/Stop scanner
+POST /api/insider/scan_now      # Déclencher scan manuel
+GET  /api/insider/stats         # Statistiques scanner
+```
+
 ### Format des Réponses API
 
 **Succès**:
@@ -891,12 +934,46 @@ CREATE TABLE trades (
     trader_address TEXT NOT NULL,
     signature TEXT UNIQUE NOT NULL,
     type TEXT NOT NULL,              -- 'BUY' ou 'SELL'
-    token_address TEXT NOT NULL,
+    token_id TEXT NOT NULL,          -- Polymarket token ID
     amount REAL NOT NULL,
     price REAL,
     pnl REAL,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     mode TEXT NOT NULL                -- 'TEST' ou 'REAL'
+);
+```
+
+**Table `insider_alerts`**:
+```sql
+CREATE TABLE insider_alerts (
+    id TEXT PRIMARY KEY,
+    wallet_address TEXT NOT NULL,
+    suspicion_score INTEGER NOT NULL,
+    market_question TEXT,
+    market_slug TEXT,
+    token_id TEXT,
+    bet_amount REAL,
+    bet_outcome TEXT,
+    outcome_odds REAL,
+    criteria_matched TEXT,           -- JSON array
+    wallet_stats TEXT,               -- JSON {pnl, win_rate, roi}
+    scoring_mode TEXT,
+    timestamp TEXT NOT NULL,
+    dedup_key TEXT
+);
+```
+
+**Table `saved_insider_wallets`**:
+```sql
+CREATE TABLE saved_insider_wallets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    address TEXT UNIQUE NOT NULL,
+    nickname TEXT,
+    notes TEXT,
+    last_activity TEXT,
+    total_alerts INTEGER DEFAULT 0,
+    avg_suspicion_score REAL DEFAULT 0,
+    saved_at TEXT
 );
 ```
 
@@ -1028,19 +1105,19 @@ db_manager.cleanup_old_data(days=30)
 
 ---
 
-## 📊 État Actuel du Projet (Phase 8)
+## 📊 État Actuel du Projet (Phase 9)
 
 ### Phases Complétées
 
 #### Phase 1 - Foundation ✅
-- Intégration Solana RPC réelle
-- API Helius pour parsing enrichi
-- Validation adresses Solana
+- Intégration Polygon RPC via Alchemy
+- APIs Polymarket (CLOB + Gamma + Goldsky)
+- Validation adresses Polygon
 - Gestion sécurisée des clés API
 
 #### Phase 2 - Execution ✅
-- Gestion wallet + transactions
-- Support multi-DEX (Raydium, Orca, Jupiter)
+- Gestion wallet Polygon + transactions
+- Polymarket CLOB API pour ordres
 - Routes API d'exécution
 - Cache + throttling RPC
 
@@ -1073,19 +1150,30 @@ db_manager.cleanup_old_data(days=30)
 - Batch RPC requests (-60% latence)
 - Workers parallèles (4 threads)
 - Smart TP/SL adaptatifs
-- Détection arbitrage multi-DEX
+- WebSocket temps réel Polygon
 
 #### Phase 8 - Advanced Features ✅
 - Risk Manager avec analyse corrélations
-- Analytics avancées avec ML
+- Analytics avancées
 - Backtesting amélioré (10x plus rapide)
 - Dashboard analytics enrichi
 
+#### Phase 9 - Insider Tracker ✅ (Nouveau)
+- Détection de wallets suspects sur Polymarket
+- Scoring configurable (0-100) avec 3 critères:
+  - Unlikely Bet (gros paris sur outcomes improbables)
+  - Abnormal Behavior (wallet dormant qui revient)
+  - Suspicious Profile (nouveau wallet, gros paris)
+- Presets de scoring (Balanced, Profile/Behavior/Bet Priority, Custom)
+- Seuils de détection personnalisables par l'utilisateur
+- 2 nouveaux onglets UI: "Insider Tracker" + "Saved Wallets"
+- Alertes temps réel via WebSocket
+- Sauvegarde de wallets d'intérêt avec stats
+
 ### Roadmap Future (Possibilités)
 
-#### Phase 9+ (À Discuter)
+#### Phase 10+ (À Discuter)
 - [ ] Prédictions ML / Trading signals
-- [ ] Support multiples blockchains (Ethereum, BSC)
 - [ ] Intégrations alertes (Telegram, Discord)
 - [ ] Dashboard d'analyse approfondie
 - [ ] Export PDF/CSV rapports
@@ -1132,14 +1220,14 @@ db_manager.cleanup_old_data(days=30)
 
 ## 📅 Dernière Mise à Jour
 
-**Date**: 26 novembre 2025
-**Version**: 4.0.0 (Phase 8 complétée)
+**Date**: 5 janvier 2026
+**Version**: 5.0.0 (Phase 9 - Insider Tracker)
 **Auteur**: Bot du Millionnaire Team
 **Status**: ✅ Production-Ready
 
 ---
 
-**Fait avec ❤️ pour la communauté Solana**
+**Fait avec ❤️ pour la communauté Polymarket**
 
 ---
 

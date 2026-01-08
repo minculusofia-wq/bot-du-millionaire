@@ -14,7 +14,65 @@
         "added_at": "2025-12-04T22:51:15.502456",
         "capital_allocated": 100.0,
         "percent_per_trade": 10.0,
-        "active": true
+        "active": true,
+        "sl_percent": null,
+        "tp_percent": null,
+        "use_kelly": true,
+        "use_trailing": false,
+        "use_risk_free": true,
+        "tp_tiers": []
+      },
+      {
+        "address": "0x31a56e9e690c621ed21de08cb559e9524cdb8ed9",
+        "name": "insider 1",
+        "added_at": "2026-01-05T17:55:39.838634",
+        "capital_allocated": 100.0,
+        "percent_per_trade": 10.0,
+        "sl_percent": null,
+        "tp_percent": null,
+        "use_kelly": true,
+        "use_trailing": false,
+        "use_risk_free": true,
+        "tp_tiers": []
+      },
+      {
+        "address": "0x6ffb4354cbe6e0f9989e3b55564ec5fb8646a834",
+        "name": "AgricultureSecretary",
+        "added_at": "2026-01-05T17:58:08.743269",
+        "capital_allocated": 0.0,
+        "percent_per_trade": 0.0,
+        "sl_percent": -10.0,
+        "tp_percent": null,
+        "use_kelly": false,
+        "use_trailing": false,
+        "use_risk_free": true,
+        "tp_tiers": [
+          {
+            "profit": 20,
+            "sell_pct": 80,
+            "executed": false
+          }
+        ]
+      },
+      {
+        "address": "0x4f51bd37e0674d7194ed9a310dc19322822d695c",
+        "name": "Osienn",
+        "added_at": "2026-01-05T18:00:04.399379"
+      },
+      {
+        "address": "0x1d448f4357ec0a680ec4af0b192e3b98cc93b144",
+        "name": "Unusa",
+        "added_at": "2026-01-05T18:01:08.175209"
+      },
+      {
+        "address": "0x751a2b86cab503496efd325c8344e10159349ea1",
+        "name": "Sharky6999",
+        "added_at": "2026-01-05T18:02:06.851423"
+      },
+      {
+        "address": "0x63ce342161250d705dc0b16df89036c8e5f9ba9a",
+        "name": "0x8dxd",
+        "added_at": "2026-01-07T22:47:44.324417"
       }
     ],
     "polling_interval": 30,

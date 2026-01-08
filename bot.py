@@ -123,7 +123,7 @@ except ImportError as e:
 try:
     from polymarket_client import polymarket_client as polymarket_clob
     print(f"✅ Client Polymarket unifié chargé: {polymarket_clob.get_stats()}")
-    
+
     # 🛡️ Initialisation du Risk Engine (Remplace SLTPMonitor et TrailingStopMonitor)
     # On l'initialise ici car il a besoin de polymarket_clob et polymarket_executor
     if polymarket_executor and polymarket_clob:
@@ -133,6 +133,23 @@ try:
 except ImportError as e:
     print(f"⚠️ CLOB Polymarket non disponible: {e}")
     polymarket_clob = None
+
+# 🔍 Imports Insider Tracker (avec fallback)
+try:
+    from insider_scanner import insider_scanner
+    from insider_routes import insider_bp
+
+    # Injecter les dependances
+    insider_scanner.socketio = socketio
+    insider_scanner.db_manager = db_manager
+
+    # Enregistrer le blueprint
+    app.register_blueprint(insider_bp)
+
+    print("✅ Insider Tracker chargé")
+except ImportError as e:
+    print(f"⚠️ Insider Tracker non disponible: {e}")
+    insider_scanner = None
 
 # ============================================================================
 # INITIALISATION
@@ -147,6 +164,7 @@ print(f"✅ Configuration chargée")
 print(f"📊 Polymarket: {'Activé' if backend.data.get('polymarket', {}).get('enabled') else 'Désactivé'}")
 print(f"🔌 WebSocket Polygon: {'Disponible' if polygon_ws else 'Non disponible'}")
 print(f"📈 CLOB Polymarket: {'Disponible' if polymarket_clob else 'Non disponible'}")
+print(f"🔍 Insider Tracker: {'Disponible' if insider_scanner else 'Non disponible'}")
 print("=" * 60)
 
 

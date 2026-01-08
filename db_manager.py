@@ -165,6 +165,46 @@ class DBManager:
         c.execute('CREATE INDEX IF NOT EXISTS idx_status ON bot_positions(status)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_token_source ON bot_positions(token_id, source_wallet)')
 
+        # ============ INSIDER TRACKER TABLES ============
+
+        # Table: insider_alerts - Stocke les alertes de wallets suspects
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS insider_alerts (
+                id TEXT PRIMARY KEY,
+                wallet_address TEXT NOT NULL,
+                suspicion_score INTEGER NOT NULL,
+                market_question TEXT,
+                market_slug TEXT,
+                token_id TEXT,
+                bet_amount REAL,
+                bet_outcome TEXT,
+                outcome_odds REAL,
+                criteria_matched TEXT,
+                wallet_stats TEXT,
+                scoring_mode TEXT,
+                timestamp TEXT NOT NULL,
+                dedup_key TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_insider_alerts_wallet ON insider_alerts(wallet_address)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_insider_alerts_score ON insider_alerts(suspicion_score DESC)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_insider_alerts_ts ON insider_alerts(timestamp DESC)')
+
+        # Table: saved_insider_wallets - Wallets sauvegardés par l'utilisateur
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS saved_insider_wallets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                address TEXT UNIQUE NOT NULL,
+                nickname TEXT,
+                notes TEXT,
+                last_activity TEXT,
+                total_alerts INTEGER DEFAULT 0,
+                avg_suspicion_score REAL DEFAULT 0,
+                saved_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_saved_wallets_addr ON saved_insider_wallets(address)')
 
         self.conn.commit()
         
@@ -512,5 +552,194 @@ class DBManager:
             (tiers_json, datetime.now().isoformat(), position_id),
             commit=True
         )
+
+    # ============ INSIDER TRACKER METHODS ============
+
+    def save_insider_alert(self, alert_data: Dict) -> str:
+        """Sauvegarde une alerte insider dans la base de données
+
+        Args:
+            alert_data: Dictionnaire contenant les données de l'alerte
+
+        Returns:
+            ID de l'alerte créée
+        """
+        self._execute('''
+            INSERT OR REPLACE INTO insider_alerts
+            (id, wallet_address, suspicion_score, market_question, market_slug,
+             token_id, bet_amount, bet_outcome, outcome_odds, criteria_matched,
+             wallet_stats, scoring_mode, timestamp, dedup_key)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            alert_data.get('id'),
+            alert_data.get('wallet_address', '').lower(),
+            int(alert_data.get('suspicion_score', 0)),
+            alert_data.get('market_question'),
+            alert_data.get('market_slug'),
+            alert_data.get('token_id'),
+            float(alert_data.get('bet_amount', 0)),
+            alert_data.get('bet_outcome'),
+            float(alert_data.get('outcome_odds', 0)),
+            json.dumps(alert_data.get('criteria_matched', [])),
+            json.dumps(alert_data.get('wallet_stats', {})),
+            alert_data.get('scoring_mode', 'balanced'),
+            alert_data.get('timestamp', datetime.now().isoformat()),
+            alert_data.get('dedup_key')
+        ), commit=True)
+
+        # Mettre à jour les stats du wallet sauvegardé s'il existe
+        self._update_saved_wallet_stats(alert_data.get('wallet_address', '').lower())
+
+        return alert_data.get('id')
+
+    def get_insider_alerts(self, limit: int = 100, min_score: int = 0) -> List[Dict]:
+        """Récupère les alertes insider, triées par date décroissante
+
+        Args:
+            limit: Nombre max d'alertes à récupérer
+            min_score: Score minimum pour filtrer
+
+        Returns:
+            Liste des alertes
+        """
+        self.conn.row_factory = sqlite3.Row
+        c = self.conn.cursor()
+        c.execute('''
+            SELECT * FROM insider_alerts
+            WHERE suspicion_score >= ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+        ''', (min_score, limit))
+
+        rows = c.fetchall()
+        alerts = []
+        for row in rows:
+            alert = dict(row)
+            # Parser les champs JSON
+            try:
+                alert['criteria_matched'] = json.loads(alert.get('criteria_matched', '[]'))
+            except:
+                alert['criteria_matched'] = []
+            try:
+                alert['wallet_stats'] = json.loads(alert.get('wallet_stats', '{}'))
+            except:
+                alert['wallet_stats'] = {}
+            alerts.append(alert)
+        return alerts
+
+    def save_insider_wallet(self, wallet_data: Dict) -> int:
+        """Sauvegarde un wallet pour le tracking insider
+
+        Args:
+            wallet_data: {address, nickname, notes}
+
+        Returns:
+            ID du wallet créé
+        """
+        cursor = self._execute('''
+            INSERT OR REPLACE INTO saved_insider_wallets
+            (address, nickname, notes, saved_at)
+            VALUES (?, ?, ?, ?)
+        ''', (
+            wallet_data.get('address', '').lower(),
+            wallet_data.get('nickname', ''),
+            wallet_data.get('notes', ''),
+            datetime.now().isoformat()
+        ), commit=True)
+
+        return cursor.lastrowid if cursor else 0
+
+    def get_saved_insider_wallets(self) -> List[Dict]:
+        """Récupère tous les wallets insider sauvegardés"""
+        self.conn.row_factory = sqlite3.Row
+        c = self.conn.cursor()
+        c.execute('SELECT * FROM saved_insider_wallets ORDER BY saved_at DESC')
+        rows = c.fetchall()
+        return [dict(row) for row in rows]
+
+    def delete_insider_wallet(self, address: str):
+        """Supprime un wallet sauvegardé"""
+        self._execute(
+            'DELETE FROM saved_insider_wallets WHERE address = ?',
+            (address.lower(),),
+            commit=True
+        )
+
+    def get_wallet_alerts_history(self, address: str, limit: int = 50) -> List[Dict]:
+        """Récupère l'historique des alertes pour un wallet spécifique
+
+        Args:
+            address: Adresse du wallet
+            limit: Nombre max d'alertes
+
+        Returns:
+            Liste des alertes pour ce wallet
+        """
+        self.conn.row_factory = sqlite3.Row
+        c = self.conn.cursor()
+        c.execute('''
+            SELECT * FROM insider_alerts
+            WHERE wallet_address = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+        ''', (address.lower(), limit))
+
+        rows = c.fetchall()
+        alerts = []
+        for row in rows:
+            alert = dict(row)
+            try:
+                alert['criteria_matched'] = json.loads(alert.get('criteria_matched', '[]'))
+            except:
+                alert['criteria_matched'] = []
+            try:
+                alert['wallet_stats'] = json.loads(alert.get('wallet_stats', '{}'))
+            except:
+                alert['wallet_stats'] = {}
+            alerts.append(alert)
+        return alerts
+
+    def _update_saved_wallet_stats(self, address: str):
+        """Met à jour les statistiques d'un wallet sauvegardé (appelé après nouvelle alerte)"""
+        if not address:
+            return
+
+        # Calculer les stats à partir des alertes
+        self.conn.row_factory = sqlite3.Row
+        c = self.conn.cursor()
+        c.execute('''
+            SELECT COUNT(*) as total, AVG(suspicion_score) as avg_score, MAX(timestamp) as last_activity
+            FROM insider_alerts
+            WHERE wallet_address = ?
+        ''', (address.lower(),))
+
+        row = c.fetchone()
+        if row and row['total'] > 0:
+            self._execute('''
+                UPDATE saved_insider_wallets
+                SET total_alerts = ?, avg_suspicion_score = ?, last_activity = ?
+                WHERE address = ?
+            ''', (
+                row['total'],
+                row['avg_score'] or 0,
+                row['last_activity'],
+                address.lower()
+            ), commit=True)
+
+    def cleanup_old_insider_alerts(self, days: int = 30):
+        """Nettoie les alertes anciennes pour éviter une base trop volumineuse
+
+        Args:
+            days: Nombre de jours à conserver
+        """
+        from datetime import timedelta
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+
+        self._execute(
+            'DELETE FROM insider_alerts WHERE timestamp < ?',
+            (cutoff,),
+            commit=True
+        )
+        print(f"🧹 Alertes insider > {days} jours supprimées")
 
 db_manager = DBManager()

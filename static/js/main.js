@@ -11,11 +11,19 @@ function showTab(tabId) {
             tabId === 'live' ? 'Flux' :
                 tabId === 'wallets' ? 'Wallets' :
                     tabId === 'history' ? 'Historique' :
-
-                        tabId === 'settings' ? 'Paramètres' : '')) {
+                        tabId === 'insider' ? 'Insider' :
+                            tabId === 'saved' ? 'Saved' :
+                                tabId === 'settings' ? 'Paramètres' : '')) {
             tab.classList.add('active');
         }
     });
+
+    // Initialiser l'Insider Tracker si on affiche ces onglets
+    if (tabId === 'insider' || tabId === 'saved') {
+        if (typeof initInsiderTracker === 'function') {
+            initInsiderTracker();
+        }
+    }
 }
 
 // ============ BOT CONTROL ============

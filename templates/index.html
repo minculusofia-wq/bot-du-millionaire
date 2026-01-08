@@ -137,7 +137,8 @@
         <div class="nav-tab" onclick="showTab('live')">📋 Flux Trades</div>
         <div class="nav-tab" onclick="showTab('wallets')">👛 Wallets Suivis</div>
         <div class="nav-tab" onclick="showTab('history')">📜 Historique</div>
-
+        <div class="nav-tab" onclick="showTab('insider')">🔍 Insider Tracker</div>
+        <div class="nav-tab" onclick="showTab('saved')">📁 Saved Wallets</div>
         <div class="nav-tab" onclick="showTab('settings')">⚙️ Paramètres</div>
     </div>
 
@@ -322,6 +323,149 @@
 
 
 
+        <!-- ============ INSIDER TRACKER ============ -->
+        <div id="tab-insider" class="tab-content">
+            <div class="two-columns">
+                <!-- CONFIG SCANNER -->
+                <div class="card">
+                    <h2>🔍 Scanner Configuration</h2>
+                    <div class="flex flex-between flex-center" style="margin-bottom: 15px;">
+                        <span>Scanner Status</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="insider-scanner-toggle" onchange="toggleInsiderScanner()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Preset de Scoring</label>
+                        <select id="insider-preset" onchange="onInsiderPresetChange()">
+                            <option value="balanced">Balanced (35/35/30)</option>
+                            <option value="profile_priority">Profile Priority (25/25/50)</option>
+                            <option value="behavior_priority">Behavior Priority (25/50/25)</option>
+                            <option value="bet_priority">Bet Priority (50/25/25)</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Seuil d'Alerte (0-100)</label>
+                        <input type="number" id="insider-threshold" value="60" min="0" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Categories a Scanner</label>
+                        <div class="category-toggles" id="category-toggles">
+                            <span class="category-toggle active" data-category="politics" onclick="toggleCategory(this)">politics</span>
+                            <span class="category-toggle active" data-category="sports" onclick="toggleCategory(this)">sports</span>
+                            <span class="category-toggle active" data-category="crypto" onclick="toggleCategory(this)">crypto</span>
+                            <span class="category-toggle active" data-category="pop-culture" onclick="toggleCategory(this)">pop-culture</span>
+                        </div>
+                    </div>
+
+                    <!-- ADVANCED SETTINGS (collapsible) -->
+                    <details style="margin-top: 15px;">
+                        <summary style="cursor: pointer; color: #00B0FF; font-size: 13px;">⚙️ Advanced Settings</summary>
+                        <div style="margin-top: 15px;">
+                            <h4 style="color: #888; font-size: 12px; margin-bottom: 10px;">Seuils de Detection</h4>
+                            <div class="settings-grid" style="grid-template-columns: 1fr 1fr;">
+                                <div class="form-group">
+                                    <label style="font-size: 11px;">Min Bet Amount ($)</label>
+                                    <input type="number" id="insider-min-bet" value="1000" min="0">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size: 11px;">Max Odds Threshold (%)</label>
+                                    <input type="number" id="insider-max-odds" value="10" min="1" max="50">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size: 11px;">Dormant Days</label>
+                                    <input type="number" id="insider-dormant-days" value="30" min="1">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size: 11px;">Dormant Min Bet ($)</label>
+                                    <input type="number" id="insider-dormant-bet" value="500" min="0">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size: 11px;">New Wallet Max TX</label>
+                                    <input type="number" id="insider-max-tx" value="15" min="1">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size: 11px;">New Wallet Min Bet ($)</label>
+                                    <input type="number" id="insider-new-bet" value="500" min="0">
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CUSTOM WEIGHTS (visible si preset = custom) -->
+                    <div id="custom-weights-section" style="display: none; margin-top: 15px;">
+                        <h4 style="color: #888; font-size: 12px; margin-bottom: 10px;">Poids Custom</h4>
+                        <div class="form-group">
+                            <label style="font-size: 11px;">Unlikely Bet: <span id="weight-unlikely-val">35</span>%</label>
+                            <input type="range" id="weight-unlikely" value="35" min="0" max="100" oninput="updateWeightDisplay()">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 11px;">Abnormal Behavior: <span id="weight-abnormal-val">35</span>%</label>
+                            <input type="range" id="weight-abnormal" value="35" min="0" max="100" oninput="updateWeightDisplay()">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 11px;">Suspicious Profile: <span id="weight-profile-val">30</span>%</label>
+                            <input type="range" id="weight-profile" value="30" min="0" max="100" oninput="updateWeightDisplay()">
+                        </div>
+                        <p style="color: #666; font-size: 10px;">Total: <span id="weights-total">100</span>% (sera normalise)</p>
+                    </div>
+
+                    <button class="btn btn-primary" onclick="saveInsiderConfig()" style="width: 100%; margin-top: 15px;">Sauvegarder Config</button>
+                </div>
+
+                <!-- STATS SCANNER -->
+                <div class="card">
+                    <h2>📊 Scanner Stats</h2>
+                    <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
+                        <div class="stat-card">
+                            <h3>Alertes Generees</h3>
+                            <div class="value" id="insider-alerts-count">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Marches Scannes</h3>
+                            <div class="value" id="insider-markets-count">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Dernier Scan</h3>
+                            <div class="value" id="insider-last-scan" style="font-size: 12px;">Never</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Status</h3>
+                            <div class="value" id="insider-status" style="font-size: 14px;">Stopped</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="triggerManualScan()" style="width: 100%; margin-top: 15px;">🔍 Scan Manuel</button>
+                </div>
+            </div>
+
+            <!-- ALERT FEED -->
+            <div class="card">
+                <h2>🚨 Real-Time Alert Feed</h2>
+                <div id="insider-alert-feed" class="alert-feed">
+                    <p style="color: #888; text-align: center; padding: 40px;">
+                        En attente d'alertes... Activez le scanner pour commencer.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ SAVED WALLETS ============ -->
+        <div id="tab-saved" class="tab-content">
+            <div class="card">
+                <h2>📁 Wallets Sauvegardes pour Analyse</h2>
+                <p style="color: #888; font-size: 12px; margin-bottom: 20px;">
+                    Wallets detectes comme suspects et sauvegardes pour suivi ulterieur.
+                </p>
+                <div id="saved-wallets-list">
+                    <p style="color: #888; text-align: center; padding: 20px;">
+                        Aucun wallet sauvegarde. Utilisez le bouton "Save" sur une alerte pour ajouter.
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <!-- ============ PARAMÈTRES ============ -->
         <div id="tab-settings" class="tab-content">
             <div class="two-columns">
@@ -403,7 +547,8 @@
     <!-- Socket.IO & Chart.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=2.2"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=2.3"></script>
+    <script src="{{ url_for('static', filename='js/insider.js') }}?v=1.0"></script>
 </body>
 
 </html>

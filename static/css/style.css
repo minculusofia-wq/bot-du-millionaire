@@ -455,3 +455,264 @@ input:checked + .toggle-slider:before { transform: translateX(30px); }
 .positive { color: #00E676; }
 .negative { color: #FF5252; }
 .value { font-weight: bold; }
+
+/* ============ INSIDER TRACKER ============ */
+
+/* Alert Feed Container */
+.alert-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* Alert Card */
+.insider-alert-card {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    border-left: 4px solid;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.insider-alert-card:hover {
+    transform: translateX(5px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Score-based border colors */
+.insider-alert-card.score-high { border-left-color: #FF5252; }
+.insider-alert-card.score-medium { border-left-color: #FF9800; }
+.insider-alert-card.score-low { border-left-color: #FFC107; }
+
+.alert-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+}
+
+.alert-wallet {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.alert-wallet-address {
+    font-family: monospace;
+    font-size: 14px;
+    color: #00B0FF;
+}
+
+/* Suspicion Score Badge */
+.suspicion-score {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 16px;
+    min-width: 60px;
+    text-align: center;
+}
+.suspicion-score.high {
+    background: rgba(255, 82, 82, 0.2);
+    color: #FF5252;
+    border: 1px solid #FF5252;
+}
+.suspicion-score.medium {
+    background: rgba(255, 152, 0, 0.2);
+    color: #FF9800;
+    border: 1px solid #FF9800;
+}
+.suspicion-score.low {
+    background: rgba(255, 193, 7, 0.2);
+    color: #FFC107;
+    border: 1px solid #FFC107;
+}
+
+.alert-market {
+    font-size: 15px;
+    color: #fff;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.alert-bet-details {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 15px;
+}
+.alert-bet-details > div {
+    text-align: center;
+}
+.alert-bet-details label {
+    display: block;
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 4px;
+}
+.alert-bet-details .value {
+    font-size: 16px;
+    font-weight: bold;
+    color: #00E676;
+}
+
+.alert-criteria {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.criteria-badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+.criteria-badge.unlikely_bet {
+    background: rgba(156, 39, 176, 0.2);
+    color: #9C27B0;
+}
+.criteria-badge.abnormal_behavior {
+    background: rgba(255, 152, 0, 0.2);
+    color: #FF9800;
+}
+.criteria-badge.suspicious_profile {
+    background: rgba(0, 188, 212, 0.2);
+    color: #00BCD4;
+}
+
+.alert-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+.alert-stats > div {
+    text-align: center;
+}
+.alert-stats label {
+    display: block;
+    font-size: 10px;
+    color: #666;
+}
+.alert-stats span {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.alert-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.alert-time {
+    font-size: 11px;
+    color: #666;
+    margin-top: 10px;
+}
+
+/* Saved Wallets List */
+.saved-wallet-card {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.saved-wallet-info {
+    flex: 1;
+}
+.saved-wallet-nickname {
+    font-weight: bold;
+    font-size: 16px;
+    color: #fff;
+    margin-bottom: 4px;
+}
+.saved-wallet-address {
+    font-family: monospace;
+    font-size: 12px;
+    color: #00B0FF;
+}
+.saved-wallet-meta {
+    font-size: 11px;
+    color: #888;
+    margin-top: 6px;
+}
+.saved-wallet-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Category Toggles */
+.category-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.category-toggle {
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 12px;
+}
+.category-toggle.active {
+    background: rgba(0, 230, 118, 0.2);
+    border-color: #00E676;
+    color: #00E676;
+}
+.category-toggle:hover {
+    border-color: #00B0FF;
+}
+
+/* Range Input Styling */
+input[type="range"] {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #00E676;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+/* Select Styling */
+select {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+}
+select:focus {
+    outline: none;
+    border-color: #00E676;
+}
+select option {
+    background: #1a1a3a;
+    color: #fff;
+}

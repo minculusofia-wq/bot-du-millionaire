@@ -41,6 +41,13 @@
 - **🔄 Réconciliation au démarrage** : Vérification et nettoyage automatique des positions orphelines.
 - **📝 Logging structuré** : Logs colorés, rotation automatique, fichiers séparés (bot.log, errors.log, trades.log).
 
+### 🕵️ Insider Trading Scanner (Nouveau v2.4)
+Un système avancé de détection de comportements suspects sur Polymarket :
+- **Détection d'Anomalies** : Identifie les mises improbables (gros montants sur faibles probabilités), les profils suspects (nouveaux wallets) et les "whale movements".
+- **Intégration Goldsky & Polygonscan** : Analyse profonde de l'historique des wallets et de l'activité du marché via subgraphs et API blockchain.
+- **Alertes Temps Réel** : Notification immédiate lors de la détection de patterns de trading non-naturels.
+- **Scoring Intelligent** : Algorithme de notation (0-100) pour évaluer la "suspicion" d'une transaction.
+
 ---
 
 ## 🚀 Installation
