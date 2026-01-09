@@ -66,30 +66,10 @@ function triggerManualScan() {
 
 // ============ CONFIGURATION ============
 
-function onInsiderPresetChange() {
-    const preset = document.getElementById('insider-preset').value;
-    const customSection = document.getElementById('custom-weights-section');
-
-    if (preset === 'custom') {
-        customSection.style.display = 'block';
-    } else {
-        customSection.style.display = 'none';
-    }
-}
+// ============ CONFIGURATION ============
 
 function toggleCategory(el) {
     el.classList.toggle('active');
-}
-
-function updateWeightDisplay() {
-    const unlikely = parseInt(document.getElementById('weight-unlikely').value) || 0;
-    const abnormal = parseInt(document.getElementById('weight-abnormal').value) || 0;
-    const profile = parseInt(document.getElementById('weight-profile').value) || 0;
-
-    document.getElementById('weight-unlikely-val').textContent = unlikely;
-    document.getElementById('weight-abnormal-val').textContent = abnormal;
-    document.getElementById('weight-profile-val').textContent = profile;
-    document.getElementById('weights-total').textContent = unlikely + abnormal + profile;
 }
 
 function saveInsiderConfig() {
@@ -99,29 +79,28 @@ function saveInsiderConfig() {
         activeCategories.push(el.dataset.category);
     });
 
-    // Collecter la config
+    // Construire la config structurée
     const config = {
-        scoring_preset: document.getElementById('insider-preset').value,
-        alert_threshold: parseInt(document.getElementById('insider-threshold').value) || 60,
         categories: activeCategories,
 
-        // Seuils avances
-        min_bet_amount: parseFloat(document.getElementById('insider-min-bet').value) || 1000,
-        max_odds_threshold: parseFloat(document.getElementById('insider-max-odds').value) || 10,
-        dormant_days: parseInt(document.getElementById('insider-dormant-days').value) || 30,
-        dormant_min_bet: parseFloat(document.getElementById('insider-dormant-bet').value) || 500,
-        max_tx_count: parseInt(document.getElementById('insider-max-tx').value) || 15,
-        new_wallet_min_bet: parseFloat(document.getElementById('insider-new-bet').value) || 500
-    };
+        risky_bet: {
+            enabled: document.getElementById('trigger-risky-enabled').checked,
+            min_amount: parseFloat(document.getElementById('trigger-risky-min').value) || 50,
+            max_odds: (parseFloat(document.getElementById('trigger-risky-odds').value) || 35) / 100
+        },
 
-    // Si mode custom, ajouter les poids
-    if (config.scoring_preset === 'custom') {
-        config.custom_weights = {
-            unlikely_bet: parseInt(document.getElementById('weight-unlikely').value) || 35,
-            abnormal_behavior: parseInt(document.getElementById('weight-abnormal').value) || 35,
-            suspicious_profile: parseInt(document.getElementById('weight-profile').value) || 30
-        };
-    }
+        whale_wakeup: {
+            enabled: document.getElementById('trigger-whale-enabled').checked,
+            min_amount: parseFloat(document.getElementById('trigger-whale-min').value) || 100,
+            dormant_days: parseInt(document.getElementById('trigger-whale-days').value) || 30
+        },
+
+        fresh_wallet: {
+            enabled: document.getElementById('trigger-fresh-enabled').checked,
+            min_amount: parseFloat(document.getElementById('trigger-fresh-min').value) || 500,
+            max_tx: parseInt(document.getElementById('trigger-fresh-tx').value) || 5
+        }
+    };
 
     fetch('/api/insider/config', {
         method: 'POST',
@@ -152,17 +131,9 @@ function loadInsiderConfig() {
 
             const config = data.config;
 
-            // Toggle scanner
+            // Toggle scanner status
             const toggle = document.getElementById('insider-scanner-toggle');
             if (toggle) toggle.checked = config.running;
-
-            // Preset
-            const preset = document.getElementById('insider-preset');
-            if (preset) preset.value = config.scoring_preset || 'balanced';
-
-            // Threshold
-            const threshold = document.getElementById('insider-threshold');
-            if (threshold) threshold.value = config.alert_threshold || 60;
 
             // Categories
             const categories = config.enabled_categories || config.categories || [];
@@ -174,11 +145,27 @@ function loadInsiderConfig() {
                 }
             });
 
-            // Status
-            updateInsiderStatus(config.running);
+            // Config Triggers
+            if (config.risky_bet) {
+                document.getElementById('trigger-risky-enabled').checked = config.risky_bet.enabled;
+                document.getElementById('trigger-risky-min').value = config.risky_bet.min_amount;
+                document.getElementById('trigger-risky-odds').value = (config.risky_bet.max_odds * 100).toFixed(0);
+            }
 
-            // Custom weights section visibility
-            onInsiderPresetChange();
+            if (config.whale_wakeup) {
+                document.getElementById('trigger-whale-enabled').checked = config.whale_wakeup.enabled;
+                document.getElementById('trigger-whale-min').value = config.whale_wakeup.min_amount;
+                document.getElementById('trigger-whale-days').value = config.whale_wakeup.dormant_days;
+            }
+
+            if (config.fresh_wallet) {
+                document.getElementById('trigger-fresh-enabled').checked = config.fresh_wallet.enabled;
+                document.getElementById('trigger-fresh-min').value = config.fresh_wallet.min_amount;
+                document.getElementById('trigger-fresh-tx').value = config.fresh_wallet.max_tx;
+            }
+
+            // Status display
+            updateInsiderStatus(config.running);
         });
 }
 
@@ -217,91 +204,53 @@ function loadInsiderAlerts() {
         });
 }
 
-function renderAlertFeed(alerts) {
-    const container = document.getElementById('insider-alert-feed');
-    if (!container) return;
+container.innerHTML = alerts.map(alert => {
+    // Mapping des types d'alerte pour badge CSS
+    const typeClass = (alert.alert_type || '').toLowerCase();
+    const typeLabel = (alert.alert_type || 'UNKNOWN').replace('_', ' ');
 
-    if (!alerts || alerts.length === 0) {
-        container.innerHTML = `
-            <p style="color: #888; text-align: center; padding: 40px;">
-                Aucune alerte detectee. Activez le scanner pour commencer.
-            </p>
-        `;
-        return;
-    }
+    const stats = alert.wallet_stats || {};
+    const pnlClass = (stats.pnl || 0) >= 0 ? 'positive' : 'negative';
 
-    container.innerHTML = alerts.map(alert => {
-        const scoreClass = alert.suspicion_score >= 80 ? 'high' :
-            alert.suspicion_score >= 60 ? 'medium' : 'low';
-
-        const criteriaHtml = (alert.criteria_matched || []).map(c =>
-            `<span class="criteria-badge ${c}">${formatCriteria(c)}</span>`
-        ).join('');
-
-        const stats = alert.wallet_stats || {};
-        const pnlClass = (stats.pnl || 0) >= 0 ? 'positive' : 'negative';
-
-        return `
-        <div class="insider-alert-card score-${scoreClass}">
+    return `
+        <div class="insider-alert-card type-${typeClass}">
             <div class="alert-header">
-                <div class="alert-wallet">
-                    ${alert.nickname ? `<span class="alert-nickname">${escapeHtml(alert.nickname)}</span>` : ''}
+                <div>
+                    <span class="alert-type-badge ${typeClass}">${typeLabel}</span>
                     <span class="alert-wallet-address">${truncateAddress(alert.wallet_address)}</span>
+                    ${alert.nickname ? `<span class="alert-nickname">(${escapeHtml(alert.nickname)})</span>` : ''}
                 </div>
-                <div class="suspicion-score ${scoreClass}">${alert.suspicion_score}</div>
+                <div class="alert-time">${formatTime(alert.timestamp)}</div>
             </div>
 
             <div class="alert-market">${escapeHtml(alert.market_question || 'Unknown Market')}</div>
 
-            <div class="alert-bet-details">
-                <div>
-                    <label>Bet Amount</label>
-                    <span class="value">$${(alert.bet_amount || 0).toFixed(2)}</span>
-                </div>
-                <div>
-                    <label>Outcome</label>
-                    <span class="value">${alert.bet_outcome || 'N/A'}</span>
-                </div>
-                <div>
-                    <label>Odds</label>
-                    <span class="value">${((alert.outcome_odds || 0) * 100).toFixed(1)}%</span>
-                </div>
+            <!-- NOUVEAU: Details precis du Trigger -->
+            <div class="alert-trigger-info" style="background: rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 4px; margin: 10px 0; border-left: 3px solid #00B0FF;">
+                <div style="font-weight: bold; font-size: 0.9em; color: #fff;">💡 ${escapeHtml(alert.trigger_details || '')}</div>
+                <div style="font-size: 1.1em; color: #00E676; margin-top: 4px;">💰 ${escapeHtml(alert.bet_details || '')}</div>
             </div>
 
-            <div class="alert-criteria">${criteriaHtml}</div>
-
-            <div class="alert-stats">
-                <div>
-                    <label>PnL</label>
-                    <span class="${pnlClass}">$${(stats.pnl || 0).toFixed(2)}</span>
-                </div>
-                <div>
-                    <label>Win Rate</label>
-                    <span>${(stats.win_rate || 0).toFixed(1)}%</span>
-                </div>
-                <div>
-                    <label>ROI</label>
-                    <span>${(stats.roi || 0).toFixed(1)}%</span>
-                </div>
-                <div>
-                    <label>Trades</label>
-                    <span>${stats.total_trades || 0}</span>
-                </div>
+            <div class="alert-stats-row" style="display: flex; gap: 15px; font-size: 0.8em; color: #888; margin-bottom: 10px;">
+                <span>PnL: <span class="${pnlClass}">$${(stats.pnl || 0).toFixed(0)}</span></span>
+                <span>WinRate: ${(stats.win_rate || 0).toFixed(0)}%</span>
+                <span>Trades: ${stats.total_trades || 0}</span>
             </div>
 
-            <div class="alert-actions">
-                <button class="btn btn-secondary btn-sm" onclick="followInsiderWallet('${alert.wallet_address}')">
+            <div class="alert-actions" style="display: flex; gap: 10px;">
+                <a href="${alert.market_url || '#'}" target="_blank" class="btn btn-primary btn-sm" style="flex: 2; text-decoration: none; text-align: center; display: flex; align-items: center; justify-content: center; background-color: #2D9CDB;">
+                    ↗ Voir sur Polymarket
+                </a>
+                <button class="btn btn-secondary btn-sm" onclick="followInsiderWallet('${alert.wallet_address}')" style="flex: 1;">
                     Follow
                 </button>
-                <button class="btn btn-primary btn-sm" onclick="saveInsiderWallet('${alert.wallet_address}')">
+                <button class="btn btn-secondary btn-sm" onclick="saveInsiderWallet('${alert.wallet_address}')" style="flex: 1;">
                     Save
                 </button>
             </div>
-
-            <div class="alert-time">${formatTime(alert.timestamp)}</div>
         </div>
         `;
-    }).join('');
+}).join('');
 }
 
 // ============ WALLET ACTIONS ============

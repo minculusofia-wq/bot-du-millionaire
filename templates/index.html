@@ -336,83 +336,93 @@
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
-                    <div class="form-group">
-                        <label>Preset de Scoring</label>
-                        <select id="insider-preset" onchange="onInsiderPresetChange()">
-                            <option value="balanced">Balanced (35/35/30)</option>
-                            <option value="profile_priority">Profile Priority (25/25/50)</option>
-                            <option value="behavior_priority">Behavior Priority (25/50/25)</option>
-                            <option value="bet_priority">Bet Priority (50/25/25)</option>
-                            <option value="custom">Custom</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Seuil d'Alerte (0-100)</label>
-                        <input type="number" id="insider-threshold" value="60" min="0" max="100">
-                    </div>
-                    <div class="form-group">
-                        <label>Categories a Scanner</label>
-                        <div class="category-toggles" id="category-toggles">
-                            <span class="category-toggle active" data-category="politics" onclick="toggleCategory(this)">politics</span>
-                            <span class="category-toggle active" data-category="sports" onclick="toggleCategory(this)">sports</span>
-                            <span class="category-toggle active" data-category="crypto" onclick="toggleCategory(this)">crypto</span>
-                            <span class="category-toggle active" data-category="pop-culture" onclick="toggleCategory(this)">pop-culture</span>
-                        </div>
-                    </div>
+                    <!-- CONFIG TRIGGERS -->
+                    <div class="trigger-config-container" style="display: flex; flex-direction: column; gap: 15px;">
 
-                    <!-- ADVANCED SETTINGS (collapsible) -->
-                    <details style="margin-top: 15px;">
-                        <summary style="cursor: pointer; color: #00B0FF; font-size: 13px;">⚙️ Advanced Settings</summary>
-                        <div style="margin-top: 15px;">
-                            <h4 style="color: #888; font-size: 12px; margin-bottom: 10px;">Seuils de Detection</h4>
-                            <div class="settings-grid" style="grid-template-columns: 1fr 1fr;">
-                                <div class="form-group">
-                                    <label style="font-size: 11px;">Min Bet Amount ($)</label>
-                                    <input type="number" id="insider-min-bet" value="1000" min="0">
+                        <!-- TRIGGER A: RISKY BET -->
+                        <div class="trigger-card"
+                            style="background: rgba(255, 68, 68, 0.05); border: 1px solid rgba(255, 68, 68, 0.2); padding: 10px; border-radius: 8px;">
+                            <div class="flex flex-between flex-center">
+                                <span style="font-weight: bold; color: #FF5252;">🎯 Risky Bet (Le Sniper)</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="trigger-risky-enabled">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-grid" style="margin-top: 10px; grid-template-columns: 1fr 1fr;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 10px;">Min Amount ($)</label>
+                                    <input type="number" id="trigger-risky-min" value="50">
                                 </div>
-                                <div class="form-group">
-                                    <label style="font-size: 11px;">Max Odds Threshold (%)</label>
-                                    <input type="number" id="insider-max-odds" value="10" min="1" max="50">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-size: 11px;">Dormant Days</label>
-                                    <input type="number" id="insider-dormant-days" value="30" min="1">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-size: 11px;">Dormant Min Bet ($)</label>
-                                    <input type="number" id="insider-dormant-bet" value="500" min="0">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-size: 11px;">New Wallet Max TX</label>
-                                    <input type="number" id="insider-max-tx" value="15" min="1">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-size: 11px;">New Wallet Min Bet ($)</label>
-                                    <input type="number" id="insider-new-bet" value="500" min="0">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 10px;">Max Odds (%)</label>
+                                    <input type="number" id="trigger-risky-odds" value="35">
                                 </div>
                             </div>
                         </div>
-                    </details>
 
-                    <!-- CUSTOM WEIGHTS (visible si preset = custom) -->
-                    <div id="custom-weights-section" style="display: none; margin-top: 15px;">
-                        <h4 style="color: #888; font-size: 12px; margin-bottom: 10px;">Poids Custom</h4>
-                        <div class="form-group">
-                            <label style="font-size: 11px;">Unlikely Bet: <span id="weight-unlikely-val">35</span>%</label>
-                            <input type="range" id="weight-unlikely" value="35" min="0" max="100" oninput="updateWeightDisplay()">
+                        <!-- TRIGGER B: WHALE WAKEUP -->
+                        <div class="trigger-card"
+                            style="background: rgba(45, 156, 219, 0.05); border: 1px solid rgba(45, 156, 219, 0.2); padding: 10px; border-radius: 8px;">
+                            <div class="flex flex-between flex-center">
+                                <span style="font-weight: bold; color: #2D9CDB;">🐋 Whale Wakeup (Le Revenant)</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="trigger-whale-enabled">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-grid" style="margin-top: 10px; grid-template-columns: 1fr 1fr;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 10px;">Min Amount ($)</label>
+                                    <input type="number" id="trigger-whale-min" value="100">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 10px;">Days Dormant</label>
+                                    <input type="number" id="trigger-whale-days" value="30">
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label style="font-size: 11px;">Abnormal Behavior: <span id="weight-abnormal-val">35</span>%</label>
-                            <input type="range" id="weight-abnormal" value="35" min="0" max="100" oninput="updateWeightDisplay()">
+
+                        <!-- TRIGGER C: FRESH WALLET -->
+                        <div class="trigger-card"
+                            style="background: rgba(0, 230, 118, 0.05); border: 1px solid rgba(0, 230, 118, 0.2); padding: 10px; border-radius: 8px;">
+                            <div class="flex flex-between flex-center">
+                                <span style="font-weight: bold; color: #00E676;">👶 Fresh Wallet (Le Nouveau)</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="trigger-fresh-enabled">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-grid" style="margin-top: 10px; grid-template-columns: 1fr 1fr;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 10px;">Min Amount ($)</label>
+                                    <input type="number" id="trigger-fresh-min" value="500">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 10px;">Max TX Count</label>
+                                    <input type="number" id="trigger-fresh-tx" value="5">
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label style="font-size: 11px;">Suspicious Profile: <span id="weight-profile-val">30</span>%</label>
-                            <input type="range" id="weight-profile" value="30" min="0" max="100" oninput="updateWeightDisplay()">
-                        </div>
-                        <p style="color: #666; font-size: 10px;">Total: <span id="weights-total">100</span>% (sera normalise)</p>
+
                     </div>
 
-                    <button class="btn btn-primary" onclick="saveInsiderConfig()" style="width: 100%; margin-top: 15px;">Sauvegarder Config</button>
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label>Categories a Scanner</label>
+                        <div class="category-toggles" id="category-toggles">
+                            <span class="category-toggle active" data-category="politics"
+                                onclick="toggleCategory(this)">politics</span>
+                            <span class="category-toggle active" data-category="sports"
+                                onclick="toggleCategory(this)">sports</span>
+                            <span class="category-toggle active" data-category="crypto"
+                                onclick="toggleCategory(this)">crypto</span>
+                            <span class="category-toggle active" data-category="pop-culture"
+                                onclick="toggleCategory(this)">pop-culture</span>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" onclick="saveInsiderConfig()"
+                        style="width: 100%; margin-top: 15px;">Sauvegarder Config</button>
                 </div>
 
                 <!-- STATS SCANNER -->
@@ -436,7 +446,8 @@
                             <div class="value" id="insider-status" style="font-size: 14px;">Stopped</div>
                         </div>
                     </div>
-                    <button class="btn btn-secondary" onclick="triggerManualScan()" style="width: 100%; margin-top: 15px;">🔍 Scan Manuel</button>
+                    <button class="btn btn-secondary" onclick="triggerManualScan()"
+                        style="width: 100%; margin-top: 15px;">🔍 Scan Manuel</button>
                 </div>
             </div>
 

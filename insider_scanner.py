@@ -18,29 +18,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("InsiderScanner")
 
 
-class SuspicionCriteria(Enum):
-    """Criteres de detection de comportement suspect"""
-    UNLIKELY_BET = "unlikely_bet"           # Pari sur outcome improbable
-    ABNORMAL_BEHAVIOR = "abnormal_behavior" # Comportement anormal
-    SUSPICIOUS_PROFILE = "suspicious_profile" # Profil suspect (nouveau wallet)
 
-
-class ScoringPreset(Enum):
-    """Presets de ponderation du scoring"""
-    BALANCED = "balanced"
-    PROFILE_PRIORITY = "profile_priority"
-    BEHAVIOR_PRIORITY = "behavior_priority"
-    BET_PRIORITY = "bet_priority"
-    CUSTOM = "custom"
-
-
-# Poids par preset
-PRESET_WEIGHTS = {
-    ScoringPreset.BALANCED: {'unlikely_bet': 35, 'abnormal_behavior': 35, 'suspicious_profile': 30},
-    ScoringPreset.PROFILE_PRIORITY: {'unlikely_bet': 25, 'abnormal_behavior': 25, 'suspicious_profile': 50},
-    ScoringPreset.BEHAVIOR_PRIORITY: {'unlikely_bet': 25, 'abnormal_behavior': 50, 'suspicious_profile': 25},
-    ScoringPreset.BET_PRIORITY: {'unlikely_bet': 50, 'abnormal_behavior': 25, 'suspicious_profile': 25},
-}
 
 
 @dataclass
@@ -48,16 +26,17 @@ class InsiderAlert:
     """Structure d'une alerte insider"""
     id: str
     wallet_address: str
-    suspicion_score: int
+    alert_type: str  # [NEW] Type principal de l'alerte (ex: "FRESH_WALLET", "RISKY_BET")
     market_question: str
     market_slug: str
+    market_url: str  # [NEW] URL directe vers le marche
     token_id: str
     bet_amount: float
     bet_outcome: str
     outcome_odds: float
-    criteria_matched: List[str]
+    trigger_details: str # [NEW] Details humains du declencheur (ex: "New Wallet (>500$)")
+    bet_details: str     # [NEW] Description precise du pari (ex: "$600 on NO @ 0.30")
     wallet_stats: Dict
-    scoring_mode: str
     timestamp: str
     dedup_key: str
     nickname: str = ""
@@ -90,31 +69,34 @@ class InsiderScanner:
         self.scan_thread = None
         self.scan_interval = 30  # seconds
 
-        # Configuration - Seuils de detection (tous configurables)
+        # Configuration - Seuils de detection (Triggers Independants)
         self.config = {
-            # Seuils Unlikely Bet
-            'min_bet_amount': 200.0,        # ✨ Abaissé de 1000 à 200
-            'max_odds_threshold': 0.20,      # ✨ Augmenté de 0.10 à 0.20
+            # TRIGGER A: RISKY BET (Le Sniper)
+            # Detecte les paris sur cotes faibles ou gros montants
+            'risky_bet': {
+                'enabled': True,
+                'min_amount': 50.0,      # Seuil min pour analyser
+                'max_odds': 0.35,        # Cote faible (< 35%)
+                'high_amount': 1000.0    # Ou tres gros montant (> 1000$)
+            },
             
-            # Seuils Abnormal Behavior
-            'dormant_days': 30,              # Jours d'inactivite
-            'dormant_min_bet': 500.0,        # Mise min apres dormance ($)
+            # TRIGGER B: WHALE WAKEUP (Le Revenant)
+            # Detecte les wallets inactifs qui reviennent
+            'whale_wakeup': {
+                'enabled': True,
+                'min_amount': 100.0,     # Seuil moyen
+                'dormant_days': 30       # Jours d'inactivite
+            },
 
-            # Seuils Suspicious Profile
-            'max_tx_count': 15,              # Max tx pour "nouveau" wallet
-            'new_wallet_min_bet': 500.0,     # Mise min pour nouveau wallet ($)
+            # TRIGGER C: FRESH WALLET (Le Nouveau)
+            # Detecte les nouveaux wallets avec GROSSE mise
+            'fresh_wallet': {
+                'enabled': True,
+                'max_tx': 5,             # Nouveau wallet
+                'min_amount': 500.0      # STRICT: Que les gros montants
+            },
 
-            # Scoring
-            'scoring_preset': ScoringPreset.BALANCED.value,
-            'alert_threshold': 30,           # ✨ Abaissé de 60 à 30
-            'categories': self.DEFAULT_CATEGORIES.copy(),
-
-            # Poids custom (utilise si preset = custom)
-            'custom_weights': {
-                'unlikely_bet': 35,
-                'abnormal_behavior': 35,
-                'suspicious_profile': 30
-            }
+            'categories': self.DEFAULT_CATEGORIES.copy()
         }
 
         # Deduplication cache: {dedup_key: timestamp}
@@ -128,6 +110,7 @@ class InsiderScanner:
         self._wallet_tx_cache = {}  # {address: {count, timestamp}}
         self._wallet_activity_cache = {}  # {address: {last_activity, timestamp}}
         self._market_cache = {}  # {token_id: {data, timestamp}}
+        self._market_snapshots = {} # [NEW] {condition_id: {user: balance}} pour detection de variation (diff)
 
         # Stats
         self.alerts_generated = 0
@@ -150,12 +133,15 @@ class InsiderScanner:
     # =========================================================================
 
     def set_config(self, new_config: Dict):
-        """Met a jour la configuration du scanner"""
+        """Met a jour la configuration du scanner avec fusion intelligente"""
         for key, value in new_config.items():
-            if key in self.config:
+            # Si c'est un dictionnaire (ex: un trigger), on merge au lieu d'ecraser
+            if key in self.config and isinstance(self.config[key], dict) and isinstance(value, dict):
+                self.config[key].update(value)
+            elif key in self.config:
                 self.config[key] = value
 
-        logger.info(f"📝 Config mise a jour: preset={self.config['scoring_preset']}, threshold={self.config['alert_threshold']}")
+        logger.info(f"📝 Config mise a jour.")
 
     def get_config(self) -> Dict:
         """Retourne la configuration actuelle"""
@@ -171,18 +157,7 @@ class InsiderScanner:
         """Ajoute un callback pour notifications d'alertes"""
         self.callbacks.append(callback)
 
-    def _get_weights(self) -> Dict:
-        """Retourne les poids de scoring selon le preset actif"""
-        preset_name = self.config['scoring_preset']
 
-        if preset_name == ScoringPreset.CUSTOM.value:
-            return self.config['custom_weights']
-
-        try:
-            preset = ScoringPreset(preset_name)
-            return PRESET_WEIGHTS.get(preset, PRESET_WEIGHTS[ScoringPreset.BALANCED])
-        except ValueError:
-            return PRESET_WEIGHTS[ScoringPreset.BALANCED]
 
     # =========================================================================
     # DATA SOURCES
@@ -218,36 +193,86 @@ class InsiderScanner:
             logger.error(f"❌ Erreur get_all_active_markets: {e}")
             return []
 
-    def get_recent_market_activity(self, condition_id: str, limit: int = 100) -> List[Dict]:
-        """Recupere l'activite recente sur un marche via Goldsky Activity Subgraph"""
-        # Schema 0.0.4 FPMM discovery: fixedProductMarketMakers is the main entity.
-        # However, for activity, we can try to use a different approach or skip if missing.
-        # But to keep it working for scanner, let's try a very basic query on positions.
+    def get_recent_market_activity(self, condition_id: str) -> List[Dict]:
+        """
+        Recupere les NOUVELLES positions ou AUGMENTATIONS de positions via snapshot diff.
+        Ceci permet de detecter les "achats recents" meme sans API d'historique de trades.
+        """
+        if not condition_id:
+            return []
+
+        # 1. Recuperer l'etat ACTUEL des balances (Top 300 holders pour avoir une bonne couverture)
+        # On ne filtre pas par high balance pour voir les petits insiders.
         query = """
         {
-          positions(
-            first: %d,
-            orderBy: timestamp,
+          userBalances(
+            first: 300,
+            orderBy: balance,
             orderDirection: desc,
-            where: {condition: "%s"}
+            where: { asset_: { condition: "%s" }, balance_gt: "0" } 
           ) {
             id
             user
-            amount
-            price
-            timestamp
+            balance
+            asset {
+              id
+              token_id
+            }
           }
         }
-        """ % (limit, condition_id)
+        """ % condition_id
 
         try:
-            resp = requests.post(self.GOLDSKY_ACTIVITY, json={'query': query}, timeout=10)
+            resp = requests.post(self.GOLDSKY_POSITIONS, json={'query': query}, timeout=5)
+            
+            current_holders = {} # {user: balance}
+            activities = []
+
             if resp.status_code == 200:
                 data = resp.json()
-                return data.get('data', {}).get('activities', [])
-            return []
+                if 'data' in data and data['data'].get('userBalances'):
+                    raw_positions = data['data']['userBalances']
+                    
+                    # Construire la map actuelle
+                    for p in raw_positions:
+                        user = p.get('user')
+                        balance = float(p.get('balance', 0))
+                        current_holders[user] = balance
+            
+            # 2. Comparer avec le snapshot PRECEDENT
+            # Si c'est le premier scan, on ne genere PAS d'alerte (sinon on alerte sur tout le monde)
+            # On initialise juste le snapshot.
+            if condition_id in self._market_snapshots:
+                last_holders = self._market_snapshots[condition_id]
+                
+                # Detecter les NOUVEAUX et les AUGMENTATIONS
+                for user, current_bal in current_holders.items():
+                    old_bal = last_holders.get(user, 0)
+                    
+                    # Seuil minimum de changement (ex: 10$ -> ~10_000_000 units)
+                    # Mais on laisse process_activity filtrer par montant USD ($10)
+                    if current_bal > old_bal:
+                        diff = current_bal - old_bal
+                        
+                        # Generer une activite synthetique "BUY/HOLD"
+                        activities.append({
+                            'user': user,
+                            'amount': diff,   # Le montant de l'augmentation = le montant du pari recent
+                            'timestamp': datetime.now().timestamp(),
+                            'type': 'POSITION_INCREASE'
+                        })
+            else:
+                # Premier passage : on ne sait pas ce qui est nouveau, on apprend juste l'etat du marche.
+                # logger.debug(f"Snapshot initial pour {condition_id} ({len(current_holders)} holders)")
+                pass
+
+            # 3. Mettre a jour le snapshot
+            self._market_snapshots[condition_id] = current_holders
+            
+            return activities
+
         except Exception as e:
-            logger.debug(f"Goldsky Activity error: {e}")
+            logger.debug(f"Error fetching activity snapshot: {e}")
             return []
 
     def get_wallet_tx_count(self, address: str) -> int:
@@ -381,67 +406,71 @@ class InsiderScanner:
         return stats
 
     # =========================================================================
-    # SCORING ALGORITHM
+    # TRIGGER DETECTION ALGORITHM
     # =========================================================================
 
-    def calculate_suspicion_score(self, wallet: str, bet_amount: float,
-                                   outcome_odds: float) -> tuple:
+    def detect_triggers(self, wallet: str, bet_amount: float, outcome_odds: float) -> List[Dict]:
         """
-        Calcule le score de suspicion (0-100) avec les poids configurables.
-        Retourne: (score, liste des criteres matches, details)
+        Verifie si l'activite declenche un ou plusieurs triggers.
+        Retourne une liste de triggers actifs: [{'type': 'RISKY_BET', 'details': '...'}]
         """
-        weights = self._get_weights()
-        score = 0
-        matched_criteria = []
-        details = {}
+        triggers = []
+        
+        # 1. TRIGGER A: RISKY BET (Le Sniper)
+        cfg_risky = self.config['risky_bet']
+        if cfg_risky['enabled']:
+            # Condition: Mise > 50$ ET (Cote < 35% OU Mise > 1000$)
+            if bet_amount >= cfg_risky['min_amount']:
+                is_low_odds = outcome_odds <= cfg_risky['max_odds']
+                is_high_amount = bet_amount >= cfg_risky['high_amount']
+                
+                if is_low_odds or is_high_amount:
+                    reason = "Low Odds" if is_low_odds else "High Stake"
+                    triggers.append({
+                        'type': 'RISKY_BET',
+                        'label': 'Pari Risqué',
+                        'details': f"{reason} (Odds: {outcome_odds:.2f})"
+                    })
+                    logger.debug(f"  [TRIGGER] RISKY_BET: ${bet_amount} @ {outcome_odds:.2f}")
 
-        # 1. UNLIKELY BET DETECTION
-        min_bet = self.config['min_bet_amount']
-        max_odds = self.config['max_odds_threshold']
+        # Les triggers suivants necessitent des appels API couteux (Polygonscan)
+        # On ne les verifie que si le montant depasse le seuil minimum du trigger LE PLUS BAS (ici 100$)
+        # pour eviter de spammer l'API pour des paris de 10$ qui ne triggeront rien de toute facon.
+        
+        min_profile_check = min(self.config['whale_wakeup']['min_amount'], self.config['fresh_wallet']['min_amount'])
+        if bet_amount < min_profile_check:
+            return triggers
 
-        if bet_amount >= min_bet and outcome_odds <= max_odds:
-            score += weights['unlikely_bet']
-            matched_criteria.append(SuspicionCriteria.UNLIKELY_BET.value)
-            details['unlikely_bet'] = {
-                'bet_amount': bet_amount,
-                'odds': outcome_odds,
-                'thresholds': {'min_bet': min_bet, 'max_odds': max_odds}
-            }
-            logger.debug(f"  [UNLIKELY_BET] ${bet_amount:.2f} @ {outcome_odds:.2%} odds")
-
-        # 2. ABNORMAL BEHAVIOR - Wallet dormant qui revient
-        dormant_days = self.config['dormant_days']
-        dormant_min_bet = self.config['dormant_min_bet']
-
+        # Recuperation des infos wallet (avec cache)
         last_activity = self.get_wallet_last_activity(wallet)
-        if last_activity:
-            days_since_activity = (datetime.now() - last_activity).days
-            if days_since_activity > dormant_days and bet_amount >= dormant_min_bet:
-                score += weights['abnormal_behavior']
-                matched_criteria.append(SuspicionCriteria.ABNORMAL_BEHAVIOR.value)
-                details['abnormal_behavior'] = {
-                    'days_dormant': days_since_activity,
-                    'bet_amount': bet_amount,
-                    'thresholds': {'dormant_days': dormant_days, 'min_bet': dormant_min_bet}
-                }
-                logger.debug(f"  [ABNORMAL] Dormant {days_since_activity} jours, mise ${bet_amount:.2f}")
-
-        # 3. SUSPICIOUS PROFILE - Nouveau wallet
-        max_tx = self.config['max_tx_count']
-        new_wallet_min = self.config['new_wallet_min_bet']
-
         tx_count = self.get_wallet_tx_count(wallet)
-        if tx_count < max_tx and bet_amount >= new_wallet_min:
-            score += weights['suspicious_profile']
-            matched_criteria.append(SuspicionCriteria.SUSPICIOUS_PROFILE.value)
-            details['suspicious_profile'] = {
-                'tx_count': tx_count,
-                'bet_amount': bet_amount,
-                'thresholds': {'max_tx': max_tx, 'min_bet': new_wallet_min}
-            }
-            logger.debug(f"  [SUSPICIOUS_PROFILE] Nouveau wallet ({tx_count} tx), mise ${bet_amount:.2f}")
 
-        return score, matched_criteria, details
+        # 2. TRIGGER B: WHALE WAKEUP (Le Revenant)
+        cfg_whale = self.config['whale_wakeup']
+        if cfg_whale['enabled'] and bet_amount >= cfg_whale['min_amount']:
+            if last_activity:
+                days_since = (datetime.now() - last_activity).days
+                if days_since >= cfg_whale['dormant_days']:
+                    triggers.append({
+                        'type': 'WHALE_WAKEUP',
+                        'label': 'Réveil Dormant',
+                        'details': f"Inactif {days_since}j"
+                    })
+                    logger.debug(f"  [TRIGGER] WHALE_WAKEUP: Inactif {days_since}j")
+
+        # 3. TRIGGER C: FRESH WALLET (Le Nouveau)
+        cfg_fresh = self.config['fresh_wallet']
+        if cfg_fresh['enabled'] and bet_amount >= cfg_fresh['min_amount']:
+            # Note: tx_count peut etre 999 si API key manquante -> Le trigger ne s'active pas (safe)
+            if tx_count <= cfg_fresh['max_tx']:
+                triggers.append({
+                    'type': 'FRESH_WALLET',
+                    'label': 'Nouveau Wallet',
+                    'details': f"Seulement {tx_count} txs"
+                })
+                logger.debug(f"  [TRIGGER] FRESH_WALLET: {tx_count} txs, ${bet_amount}")
+
+        return triggers
 
     # =========================================================================
     # ALERT GENERATION
@@ -468,7 +497,7 @@ class InsiderScanner:
             del self.recent_alerts[k]
 
     def process_activity(self, activity: Dict, market: Dict) -> Optional[InsiderAlert]:
-        """Traite une activite et genere une alerte si suspecte"""
+        """Traite une activite et genere une alerte si un trigger est active"""
         wallet = activity.get('user', '')
         if not wallet:
             return None
@@ -477,8 +506,8 @@ class InsiderScanner:
         amount_raw = int(activity.get('amount', 0))
         bet_amount = amount_raw / 1e6  # USDC 6 decimals
 
-        # Ignorer les petits paris
-        if bet_amount < 100:
+        # [MODIFIED] Filtre global abaisse de 100$ a 10$ pour laisser passer les "Risky Bets"
+        if bet_amount < 10.0:
             return None
 
         # Infos marche
@@ -492,17 +521,27 @@ class InsiderScanner:
 
         # Parser le prix de l'activite ou utiliser les odds du marche
         price = float(activity.get('price', 0)) / 1e6 if activity.get('price') else 0.5
-
+        
+        # Logique de determination du pari (YES/NO et Odds)
         if outcome_prices and len(outcome_prices) >= 2:
             yes_price = float(outcome_prices[0]) if outcome_prices[0] else 0.5
-            no_price = float(outcome_prices[1]) if outcome_prices[1] else 0.5
-            # Determiner quel outcome
-            if price > 0 and price < 0.5:
+            # no_price = float(outcome_prices[1]) if outcome_prices[1] else 0.5 # Unused
+            
+            # Si le prix de l'activité est cohérent (entre 0 et 1)
+            if 0 < price < 1:
                 outcome_odds = price
-                bet_outcome = "NO" if yes_price > 0.5 else "YES"
+                # Si on achete a ce prix, on parie sur l'outcome correspondant.
+                # Simplification: On assume souvent que c'est du Binary.
+                # Si price correspond au YES, c'est YES.
+                # Mais ici on garde la logique existante: on déduit le side.
+                # Pour faire simple et robuste:
+                bet_outcome = "YES" # Par defaut
+                # Si c'est un "Sell", c'est l'inverse, mais ici on scanne les "Buys" (activités positives)
+                # Amélioration: le scanner regarde les positions, donc c'est implicitement un "Hold/Buy"
             else:
-                outcome_odds = min(yes_price, no_price)
-                bet_outcome = "NO" if yes_price > 0.5 else "YES"
+                # Fallback sur les prix actuels
+                outcome_odds = yes_price
+                bet_outcome = "YES"
         else:
             outcome_odds = price if price > 0 else 0.5
             bet_outcome = "YES"
@@ -512,30 +551,37 @@ class InsiderScanner:
         if self._is_duplicate(dedup_key):
             return None
 
-        # Calculer le score de suspicion
-        score, matched_criteria, _ = self.calculate_suspicion_score(wallet, bet_amount, outcome_odds)
+        # [MODIFIED] Detection par Triggers
+        active_triggers = self.detect_triggers(wallet, bet_amount, outcome_odds)
 
-        # Filtrer selon le seuil
-        if score < self.config['alert_threshold']:
+        if not active_triggers:
             return None
 
-        # Recuperer les stats du wallet
+        # On prend le trigger le plus prioritaire/important comme type principal
+        primary_trigger = active_triggers[0]
+        
+        # Recuperer les stats du wallet pour enrichir
         wallet_stats = self.get_wallet_performance(wallet)
+        
+        # Formater les details pour l'affichage humain
+        trigger_desc = ", ".join([f"{t['label']} ({t['details']})" for t in active_triggers])
+        bet_desc = f"${bet_amount:.0f} sur {bet_outcome} @ {outcome_odds:.2f}"
 
         # Generer l'alerte
         alert = InsiderAlert(
             id=f"alert_{int(datetime.now().timestamp() * 1000)}_{wallet[:8]}",
             wallet_address=wallet,
-            suspicion_score=score,
+            alert_type=primary_trigger['type'], # ex: FRESH_WALLET
             market_question=market_question,
             market_slug=market_slug,
+            market_url=f"https://polymarket.com/event/{market_slug}",
             token_id=token_id,
             bet_amount=bet_amount,
             bet_outcome=bet_outcome,
             outcome_odds=outcome_odds,
-            criteria_matched=matched_criteria,
+            trigger_details=trigger_desc,
+            bet_details=bet_desc,
             wallet_stats=wallet_stats,
-            scoring_mode=self.config['scoring_preset'],
             timestamp=datetime.now().isoformat(),
             dedup_key=dedup_key,
             nickname=self.get_polymarket_username(wallet) or ""
@@ -596,7 +642,7 @@ class InsiderScanner:
                                 except Exception as e:
                                     logger.error(f"Callback error: {e}")
 
-                            logger.info(f"🚨 ALERTE Score {alert.suspicion_score} | {alert.wallet_address[:10]}... | ${alert.bet_amount:.2f} sur '{market_slug[:30]}...'")
+                            logger.info(f"🚨 ALERT [{alert.alert_type}] {alert.wallet_address[:8]}... | {alert.bet_details} | {alert.trigger_details}")
 
                     # Petit delai pour eviter rate limiting
                     time.sleep(0.1)
