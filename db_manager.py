@@ -172,14 +172,18 @@ class DBManager:
             CREATE TABLE IF NOT EXISTS insider_alerts (
                 id TEXT PRIMARY KEY,
                 wallet_address TEXT NOT NULL,
+                alert_type TEXT,
                 suspicion_score INTEGER NOT NULL,
                 market_question TEXT,
                 market_slug TEXT,
+                market_url TEXT,
                 token_id TEXT,
                 bet_amount REAL,
                 bet_outcome TEXT,
                 outcome_odds REAL,
                 criteria_matched TEXT,
+                trigger_details TEXT,
+                bet_details TEXT,
                 wallet_stats TEXT,
                 scoring_mode TEXT,
                 timestamp TEXT NOT NULL,
@@ -188,6 +192,20 @@ class DBManager:
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        
+        # Migration: Ajouter colonnes manquantes pour Insider Alerts V2
+        alert_migrations = [
+            ('alert_type', 'TEXT'),
+            ('market_url', 'TEXT'),
+            ('trigger_details', 'TEXT'),
+            ('bet_details', 'TEXT'),
+            ('nickname', 'TEXT')
+        ]
+        for col, col_type in alert_migrations:
+            try:
+                c.execute(f'ALTER TABLE insider_alerts ADD COLUMN {col} {col_type}')
+            except:
+                pass  # Colonne existe déjà
         c.execute('CREATE INDEX IF NOT EXISTS idx_insider_alerts_wallet ON insider_alerts(wallet_address)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_insider_alerts_score ON insider_alerts(suspicion_score DESC)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_insider_alerts_ts ON insider_alerts(timestamp DESC)')
@@ -583,21 +601,25 @@ class DBManager:
         """
         self._execute('''
             INSERT OR REPLACE INTO insider_alerts
-            (id, wallet_address, suspicion_score, market_question, market_slug,
-             token_id, bet_amount, bet_outcome, outcome_odds, criteria_matched,
+            (id, wallet_address, alert_type, suspicion_score, market_question, market_slug, market_url,
+             token_id, bet_amount, bet_outcome, outcome_odds, criteria_matched, trigger_details, bet_details,
              wallet_stats, scoring_mode, timestamp, dedup_key, nickname)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             alert_data.get('id'),
             alert_data.get('wallet_address', '').lower(),
+            alert_data.get('alert_type', ''),
             int(alert_data.get('suspicion_score', 0)),
             alert_data.get('market_question'),
             alert_data.get('market_slug'),
+            alert_data.get('market_url', ''),
             alert_data.get('token_id'),
             float(alert_data.get('bet_amount', 0)),
             alert_data.get('bet_outcome'),
             float(alert_data.get('outcome_odds', 0)),
             json.dumps(alert_data.get('criteria_matched', [])),
+            alert_data.get('trigger_details', ''),
+            alert_data.get('bet_details', ''),
             json.dumps(alert_data.get('wallet_stats', {})),
             alert_data.get('scoring_mode', 'balanced'),
             alert_data.get('timestamp', datetime.now().isoformat()),
@@ -657,7 +679,7 @@ class DBManager:
                 pnl = excluded.pnl,
                 win_rate = excluded.win_rate
         ''', (
-            wallet_data.get('address', '').lower(),
+            (wallet_data.get('address') or '').lower(),
             wallet_data.get('nickname', ''),
             wallet_data.get('notes', ''),
             source,

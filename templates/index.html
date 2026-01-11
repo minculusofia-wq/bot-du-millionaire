@@ -270,20 +270,27 @@
             </div>
 
             <div class="card">
-                <h2>🏆 Benchmark des Wallets</h2>
+                <div class="flex flex-between flex-center" style="margin-bottom: 15px;">
+                    <h2>🏆 Benchmark des Wallets</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="loadBenchmark()">🔄 Rafraîchir</button>
+                </div>
+                <p style="color: #888; font-size: 12px; margin-bottom: 15px;">
+                    Classement des wallets sauvegardés par performance (PnL + Win Rate)
+                </p>
                 <table>
                     <thead>
                         <tr>
-                            <th>Rang</th>
+                            <th style="width: 50px;">🏅</th>
                             <th>Wallet</th>
-                            <th>Win Rate</th>
-                            <th>PnL</th>
-                            <th>Trades</th>
+                            <th style="text-align: right;">PnL</th>
+                            <th style="text-align: right;">Win Rate</th>
+                            <th style="text-align: center;">Status</th>
+                            <th style="text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="benchmark-table">
                         <tr>
-                            <td colspan="5" style="text-align: center; color: #888;">Pas de données</td>
+                            <td colspan="6" style="text-align: center; color: #888;">Chargement...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -454,7 +461,7 @@
             <!-- ALERT FEED -->
             <div class="card">
                 <h2>🚨 Real-Time Alert Feed</h2>
-                <div id="insider-alert-feed" class="alert-feed">
+                <div id="insider-alerts-feed" class="alert-feed">
                     <p style="color: #888; text-align: center; padding: 40px;">
                         En attente d'alertes... Activez le scanner pour commencer.
                     </p>
@@ -464,14 +471,28 @@
 
         <!-- ============ SAVED WALLETS ============ -->
         <div id="tab-saved" class="tab-content">
+            <!-- SECTION 1: ALERTES EN ATTENTE (non sauvegardées) -->
+            <div class="card" id="pending-alerts-section">
+                <h2>🚨 Alertes en Attente <span id="pending-count" class="pending-badge">0</span></h2>
+                <p style="color: #888; font-size: 12px; margin-bottom: 15px;">
+                    Nouveaux wallets suspects détectés par le scanner. Sauvegardez-les pour les suivre ou ignorez-les.
+                </p>
+                <div id="pending-alerts-list">
+                    <p style="color: #888; text-align: center; padding: 20px;">
+                        Aucune alerte en attente. Le scanner cherche des wallets suspects...
+                    </p>
+                </div>
+            </div>
+
+            <!-- SECTION 2: WALLETS SAUVEGARDÉS -->
             <div class="card">
-                <h2>📁 Wallets Sauvegardes pour Analyse</h2>
+                <h2>📁 Wallets Sauvegardés <span id="saved-count" class="saved-badge">0</span></h2>
                 <p style="color: #888; font-size: 12px; margin-bottom: 20px;">
-                    Wallets detectes comme suspects et sauvegardes pour suivi ulterieur.
+                    Wallets que vous avez choisi de suivre. Cliquez sur "Follow" pour les ajouter au copy trading.
                 </p>
                 <div id="saved-wallets-list">
                     <p style="color: #888; text-align: center; padding: 20px;">
-                        Aucun wallet sauvegarde. Utilisez le bouton "Save" sur une alerte pour ajouter.
+                        Aucun wallet sauvegardé. Utilisez le bouton "💾 Sauvegarder" sur une alerte ci-dessus.
                     </p>
                 </div>
             </div>
@@ -558,8 +579,8 @@
     <!-- Socket.IO & Chart.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=2.3"></script>
-    <script src="{{ url_for('static', filename='js/insider.js') }}?v=1.0"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=2.4"></script>
+    <script src="{{ url_for('static', filename='js/insider.js') }}?v=2.1"></script>
 </body>
 
 </html>

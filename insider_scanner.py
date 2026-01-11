@@ -193,7 +193,7 @@ class InsiderScanner:
             logger.error(f"❌ Erreur get_all_active_markets: {e}")
             return []
 
-    def get_recent_market_activity(self, condition_id: str) -> List[Dict]:
+    def get_recent_market_activity(self, condition_id: str, limit: int = 300) -> List[Dict]:
         """
         Recupere les NOUVELLES positions ou AUGMENTATIONS de positions via snapshot diff.
         Ceci permet de detecter les "achats recents" meme sans API d'historique de trades.
@@ -201,12 +201,12 @@ class InsiderScanner:
         if not condition_id:
             return []
 
-        # 1. Recuperer l'etat ACTUEL des balances (Top 300 holders pour avoir une bonne couverture)
+        # 1. Recuperer l'etat ACTUEL des balances (Top N holders pour avoir une bonne couverture)
         # On ne filtre pas par high balance pour voir les petits insiders.
         query = """
         {
           userBalances(
-            first: 300,
+            first: %d,
             orderBy: balance,
             orderDirection: desc,
             where: { asset_: { condition: "%s" }, balance_gt: "0" } 
@@ -220,7 +220,7 @@ class InsiderScanner:
             }
           }
         }
-        """ % condition_id
+        """ % (limit, condition_id)
 
         try:
             resp = requests.post(self.GOLDSKY_POSITIONS, json={'query': query}, timeout=5)
@@ -602,6 +602,8 @@ class InsiderScanner:
         self._cleanup_dedup_cache()
 
         categories = self.config.get('categories', self.DEFAULT_CATEGORIES)
+        total_activities = 0
+        total_markets_with_activity = 0
 
         for category in categories:
             try:
@@ -615,6 +617,10 @@ class InsiderScanner:
 
                     # Recuperer l'activite recente sur ce marche
                     activities = self.get_recent_market_activity(condition_id, limit=50)
+                    
+                    if activities:
+                        total_markets_with_activity += 1
+                        total_activities += len(activities)
 
                     for activity in activities:
                         # Si on utilise 'positions' au lieu de 'activities', le type est implicite ou dans un autre champ
@@ -649,6 +655,12 @@ class InsiderScanner:
 
             except Exception as e:
                 logger.error(f"❌ Erreur scan categorie {category}: {e}")
+
+        # Log résumé du scan
+        if total_activities > 0:
+            logger.info(f"📊 Scan terminé: {total_activities} activités sur {total_markets_with_activity} marchés, {len(all_alerts)} alertes générées")
+        else:
+            logger.debug(f"📊 Scan terminé: Aucune nouvelle activité détectée (snapshots en cours d'initialisation)")
 
         self.last_scan = datetime.now()
         return all_alerts
@@ -851,7 +863,7 @@ class InsiderScanner:
             if self.db_manager:
                 # 🚀 Récupérer la source actuelle pour ne pas l'écraser (ex: MANUAL)
                 existing_wallets = self.db_manager.get_saved_insider_wallets()
-                existing_wallet = next((w for w in existing_wallets if w['address'].lower() == wallet_address.lower()), None)
+                existing_wallet = next((w for w in existing_wallets if w.get('address') and w['address'].lower() == wallet_address.lower()), None)
                 source = existing_wallet['source'] if existing_wallet else 'SCANNER'
 
                 # Chercher le nickname Polymarket si absent
@@ -868,7 +880,7 @@ class InsiderScanner:
                     'pnl': stats['pnl'],
                     'win_rate': stats['win_rate'],
                     'nickname': nickname,
-                    'notes': existing_wallet['notes'] if existing_wallet else f"Profilé le {datetime.now().strftime('%d/%m %H:%M')}"
+                    'notes': (existing_wallet.get('notes') or f"Profilé le {datetime.now().strftime('%d/%m %H:%M')}") if existing_wallet else f"Profilé le {datetime.now().strftime('%d/%m %H:%M')}"
                 }, source=source)
                 
                 # Optionnel: On peut aussi garder l'update direct pour les champs spécifiques si besoin

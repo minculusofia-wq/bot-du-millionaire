@@ -26,6 +26,7 @@ body {
     font-size: 24px;
     background: linear-gradient(90deg, #00E676, #00B0FF);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -938,4 +939,216 @@ select option {
     background: rgba(156, 39, 176, 0.2);
     color: #9C27B0;
     border: 1px solid #9C27B0;
+}
+
+/* ============ PENDING ALERTS ============ */
+
+.pending-badge,
+.saved-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-left: 10px;
+}
+
+.pending-badge {
+    background: rgba(255, 82, 82, 0.2);
+    color: #FF5252;
+    border: 1px solid #FF5252;
+}
+
+.saved-badge {
+    background: rgba(0, 230, 118, 0.2);
+    color: #00E676;
+    border: 1px solid #00E676;
+}
+
+/* Pending Alert Card */
+.pending-alert-card {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 15px;
+    border-left: 4px solid #FF5252;
+    transition: all 0.3s;
+}
+
+.pending-alert-card:hover {
+    background: rgba(0, 0, 0, 0.4);
+    transform: translateX(3px);
+}
+
+.pending-alert-card .alert-type-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-right: 10px;
+}
+
+.pending-alert-card .alert-type-badge.risky_bet {
+    background: rgba(255, 82, 82, 0.2);
+    color: #FF5252;
+}
+
+.pending-alert-card .alert-type-badge.fresh_wallet {
+    background: rgba(0, 230, 118, 0.2);
+    color: #00E676;
+}
+
+.pending-alert-card .alert-type-badge.whale_wakeup {
+    background: rgba(45, 156, 219, 0.2);
+    color: #2D9CDB;
+}
+
+.pending-alert-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.pending-alert-wallet {
+    font-family: monospace;
+    color: #00B0FF;
+    font-size: 14px;
+}
+
+.pending-alert-time {
+    color: #666;
+    font-size: 11px;
+}
+
+.pending-alert-market {
+    color: #fff;
+    font-size: 14px;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.pending-alert-details {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    border-left: 3px solid #00B0FF;
+}
+
+.pending-alert-trigger {
+    font-weight: bold;
+    font-size: 13px;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.pending-alert-bet {
+    font-size: 15px;
+    color: #00E676;
+    font-weight: bold;
+}
+
+.pending-alert-stats {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 15px;
+    font-size: 12px;
+    color: #888;
+}
+
+.pending-alert-stats span.positive {
+    color: #00E676;
+}
+
+.pending-alert-stats span.negative {
+    color: #FF5252;
+}
+
+.pending-alert-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.pending-alert-actions .btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.btn-save {
+    background: linear-gradient(135deg, #00E676, #00B0FF);
+    color: #000;
+}
+
+.btn-dismiss {
+    background: rgba(255, 255, 255, 0.1);
+    color: #888;
+}
+
+.btn-dismiss:hover {
+    background: rgba(255, 82, 82, 0.2);
+    color: #FF5252;
+}
+
+/* Saved Wallet Card Enhanced */
+.saved-wallet-card {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 4px solid #00E676;
+    transition: all 0.3s;
+}
+
+.saved-wallet-card:hover {
+    background: rgba(0, 0, 0, 0.4);
+    transform: translateX(3px);
+}
+
+.saved-wallet-info {
+    flex: 1;
+}
+
+.saved-wallet-nickname {
+    font-weight: bold;
+    font-size: 16px;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.saved-wallet-address {
+    font-family: monospace;
+    font-size: 12px;
+    color: #00B0FF;
+    margin-bottom: 6px;
+}
+
+.saved-wallet-stats-brief {
+    display: flex;
+    gap: 15px;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.saved-wallet-meta {
+    font-size: 11px;
+    color: #666;
+}
+
+.saved-wallet-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
 }

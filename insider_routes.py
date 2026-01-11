@@ -173,46 +173,15 @@ def scanner_config():
         # Valider et appliquer les changements
         new_config = {}
 
-        # Scoring preset
-        if 'scoring_preset' in data:
-            new_config['scoring_preset'] = data['scoring_preset']
-
-        # Seuil d'alerte
-        if 'alert_threshold' in data:
-            threshold = int(data['alert_threshold'])
-            if 0 <= threshold <= 100:
-                new_config['alert_threshold'] = threshold
-
         # Categories
         if 'categories' in data and isinstance(data['categories'], list):
             new_config['categories'] = data['categories']
 
-        # Poids custom
-        if 'custom_weights' in data and isinstance(data['custom_weights'], dict):
-            weights = data['custom_weights']
-            # Normaliser si necessaire
-            total = sum(weights.values())
-            if total > 0:
-                new_config['custom_weights'] = {
-                    k: int(v * 100 / total) for k, v in weights.items()
-                }
-
-        # Seuils de detection
-        threshold_fields = [
-            'min_bet_amount', 'max_odds_threshold', 'dormant_days',
-            'dormant_min_bet', 'max_tx_count', 'new_wallet_min_bet'
-        ]
-        for field in threshold_fields:
-            if field in data:
-                try:
-                    if field == 'max_odds_threshold':
-                        # Convertir pourcentage en decimal
-                        val = float(data[field])
-                        new_config[field] = val / 100 if val > 1 else val
-                    else:
-                        new_config[field] = float(data[field])
-                except (ValueError, TypeError):
-                    pass
+        # Triggers Configuration (Risky Bet, Whale Wakeup, Fresh Wallet)
+        trigger_keys = ['risky_bet', 'whale_wakeup', 'fresh_wallet']
+        for key in trigger_keys:
+            if key in data and isinstance(data[key], dict):
+                new_config[key] = data[key]
 
         # Intervalle de scan
         if 'scan_interval' in data:

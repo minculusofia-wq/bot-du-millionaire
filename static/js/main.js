@@ -522,8 +522,77 @@ function resetStats() {
         });
 }
 
+// ============ BENCHMARK ============
+function loadBenchmark() {
+    fetch('/api/benchmark')
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('benchmark-table');
+            if (data.success && data.benchmark.length > 0) {
+                tbody.innerHTML = data.benchmark.map((w, index) => {
+                    let medal = '';
+                    if (index === 0) medal = '🥇';
+                    else if (index === 1) medal = '🥈';
+                    else if (index === 2) medal = '🥉';
+                    else medal = `#${index + 1}`;
+
+                    const pnlClass = w.pnl >= 0 ? 'positive' : 'negative';
+                    const winRateClass = w.win_rate >= 60 ? 'positive' : (w.win_rate < 40 ? 'negative' : '');
+
+                    const statusBadge = w.is_tracked
+                        ? '<span class="status-badge status-on" style="font-size: 10px; padding: 2px 6px;">Active</span>'
+                        : '<span style="font-size: 10px; color: #666;">Inactive</span>';
+
+                    return `
+                        <tr>
+                            <td style="font-size: 1.2em;">${medal}</td>
+                            <td>
+                                <div style="font-weight: bold; color: #fff;">${w.name || 'Unknown'}</div>
+                                <div style="font-family: monospace; font-size: 0.8em; color: #00B0FF;">${w.address}</div>
+                                <div style="font-size: 0.7em; color: #666;">${w.source || 'SCANNER'}</div>
+                            </td>
+                            <td style="text-align: right;" class="${pnlClass}">
+                                $${(w.pnl || 0).toFixed(2)}
+                            </td>
+                            <td style="text-align: right;">
+                                <span class="${winRateClass}">${(w.win_rate || 0).toFixed(1)}%</span>
+                                <div style="font-size: 0.7em; color: #666;">${w.trades} trades</div>
+                            </td>
+                            <td style="text-align: center;">${statusBadge}</td>
+                            <td style="text-align: center;">
+                                <button class="btn btn-secondary btn-sm" onclick="viewWalletTrades('${w.address}')" title="Voir les trades">📊</button>
+                                ${!w.is_tracked ? `<button class="btn btn-primary btn-sm" onclick="followInsiderWallet('${w.address}')" title="Suivre">+</button>` : ''}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888;">Aucun wallet à comparer</td></tr>';
+            }
+        })
+        .catch(console.error);
+}
+
+// ============ UPDATE UI ============
 // ============ UPDATE UI ============
 function updateUI() {
+    // Charger le benchmark si l'onglet wallet est visible
+    const walletsTab = document.getElementById('tab-wallets');
+    if (walletsTab && walletsTab.style.display !== 'none' && typeof loadBenchmark === 'function') {
+        loadBenchmark();
+    }
+
+    // Charger saved wallets si l'onglet saved est visible
+    if (window.loadPendingAndSavedWallets) {
+        const savedTab = document.getElementById('tab-saved');
+        if (savedTab && (savedTab.style.display !== 'none' || savedTab.classList.contains('active'))) {
+            window.loadPendingAndSavedWallets();
+        }
+    } else {
+        // Fallback si la fonction n'est pas encore chargée
+        if (window.loadSavedWallets) window.loadSavedWallets();
+    }
+
     fetch('/api/status').then(r => r.json()).then(data => {
         try {
             // Bot status
@@ -565,7 +634,7 @@ function updateUI() {
                 }
             }
 
-            // API Credentials placeholders
+            // API Credential placeholders
             if (data.polymarket_api) {
                 if (data.polymarket_api.key) {
                     document.getElementById('pm-api-key').value = data.polymarket_api.key;
@@ -715,4 +784,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Charger le graphique
     loadPnLChart();
+
+    // Charger le benchmark (si nécessaire)
+    if (typeof loadBenchmark === 'function') {
+        loadBenchmark();
+    }
 });

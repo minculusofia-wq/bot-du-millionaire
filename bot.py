@@ -102,6 +102,18 @@ try:
     
     # 🚀 Démarrer le tracker
     monitoring_interval = backend.data.get('polymarket', {}).get('polling_interval', 5)
+    
+    # Charger les wallets existants dans le tracker
+    existing_wallets = backend.data.get('polymarket', {}).get('tracked_wallets', [])
+    for w in existing_wallets:
+        polymarket_tracker.add_wallet(
+            address=w.get('address'),
+            name=w.get('name', 'Wallet'),
+            capital=w.get('capital_allocated', 0),
+            percent=w.get('percent_per_trade', 0)
+        )
+    print(f"📋 Tracker chargé avec {len(existing_wallets)} wallets")
+
     polymarket_tracker.start_monitoring(interval=monitoring_interval)
     print("✅ Monitoring Polymarket démarré")
     
@@ -710,21 +722,45 @@ def pnl_history():
 
 @app.route('/api/benchmark')
 def api_benchmark():
-    """Benchmark des wallets suivis"""
-    wallets = backend.data.get('polymarket', {}).get('tracked_wallets', [])
-    benchmark = []
-    for w in wallets:
-        benchmark.append({
-            'address': w.get('address'),
-            'name': w.get('name'),
-            'win_rate': 0,
-            'pnl': 0,
-            'trades': 0
+    """Benchmark des wallets suivis - classement par performance"""
+    try:
+        # Récupérer les wallets sauvegardés avec leurs stats
+        saved_wallets = db_manager.get_saved_insider_wallets()
+        
+        # Récupérer aussi les wallets suivis pour le copy trading
+        tracked_wallets = backend.data.get('polymarket', {}).get('tracked_wallets', [])
+        tracked_addresses = {w.get('address', '').lower() for w in tracked_wallets}
+        
+        benchmark = []
+        for w in saved_wallets:
+            address = w.get('address', '')
+            is_tracked = address.lower() in tracked_addresses
+            
+            benchmark.append({
+                'address': address,
+                'name': w.get('nickname') or address[:10] + '...',
+                'win_rate': w.get('win_rate', 0) or 0,
+                'pnl': w.get('pnl', 0) or 0,
+                'trades': w.get('total_alerts', 0) or 0,
+                'source': w.get('source', 'SCANNER'),
+                'is_tracked': is_tracked,
+                'last_activity': w.get('last_activity')
+            })
+        
+        # Trier par PnL décroissant (les plus performants en premier)
+        benchmark.sort(key=lambda x: (x['pnl'], x['win_rate']), reverse=True)
+        
+        # Ajouter le rang
+        for i, b in enumerate(benchmark, 1):
+            b['rank'] = i
+        
+        return jsonify({
+            'success': True,
+            'benchmark': benchmark,
+            'total': len(benchmark)
         })
-    return jsonify({
-        'success': True,
-        'benchmark': benchmark
-    })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/export')
 def api_export():

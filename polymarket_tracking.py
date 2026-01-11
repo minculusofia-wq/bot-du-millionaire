@@ -146,9 +146,18 @@ class PolymarketTracker:
             if asset_id:
                 current_map[asset_id] = int(p.get('balance', 0))
 
+        wallet_info = self.tracked_wallets.get(address.lower(), {})
+
+        # ✨ INITIAL SNAPSHOT: Si c'est la première fois qu'on scanne ce wallet,
+        # on enregistre l'état actuel sans déclencher d'alertes (pour éviter le spam au démarrage)
+        if address.lower() not in self.last_positions:
+            self.last_positions[address.lower()] = current_map
+            if current_map:
+                logger.info(f"📸 Snapshot initial pour {wallet_info.get('name', 'Wallet')} ({len(current_map)} positions)")
+            return []
+
         last_map = self.last_positions.get(address.lower(), {})
         changes = []
-        wallet_info = self.tracked_wallets.get(address.lower(), {})
 
         # Détecter ACHATS (nouvelles positions ou augmentations)
         for asset_id, balance in current_map.items():

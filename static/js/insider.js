@@ -3,6 +3,31 @@
  * Gere l'interface utilisateur pour la detection de wallets suspects sur Polymarket
  */
 
+// ============ STATE ============
+// Stocke les alertes en mémoire pour distinguer pending vs saved
+let pendingAlerts = [];
+let dismissedAlerts = new Set(); // Alertes ignorées (stockées en localStorage)
+
+// Charger les alertes ignorées depuis localStorage
+function loadDismissedAlerts() {
+    try {
+        const stored = localStorage.getItem('dismissedInsiderAlerts');
+        if (stored) {
+            dismissedAlerts = new Set(JSON.parse(stored));
+        }
+    } catch (e) {
+        console.error('Error loading dismissed alerts:', e);
+    }
+}
+
+function saveDismissedAlerts() {
+    try {
+        localStorage.setItem('dismissedInsiderAlerts', JSON.stringify([...dismissedAlerts]));
+    } catch (e) {
+        console.error('Error saving dismissed alerts:', e);
+    }
+}
+
 // ============ SCANNER CONTROL ============
 
 function toggleInsiderScanner() {
@@ -50,6 +75,7 @@ function triggerManualScan() {
                 alert(`Scan termine: ${data.alerts_found} alerte(s) trouvee(s)`);
                 loadInsiderAlerts();
                 loadInsiderStats();
+                loadPendingAndSavedWallets();
             } else {
                 alert('Erreur: ' + (data.error || 'Unknown'));
             }
@@ -60,11 +86,9 @@ function triggerManualScan() {
         })
         .finally(() => {
             btn.disabled = false;
-            btn.textContent = 'Scan Manuel';
+            btn.textContent = '🔍 Scan Manuel';
         });
 }
-
-// ============ CONFIGURATION ============
 
 // ============ CONFIGURATION ============
 
@@ -204,56 +228,226 @@ function loadInsiderAlerts() {
         });
 }
 
-container.innerHTML = alerts.map(alert => {
-    // Mapping des types d'alerte pour badge CSS
-    const typeClass = (alert.alert_type || '').toLowerCase();
-    const typeLabel = (alert.alert_type || 'UNKNOWN').replace('_', ' ');
+function renderAlertFeed(alerts) {
+    const container = document.getElementById('insider-alerts-feed');
+    if (!container) return;
 
-    const stats = alert.wallet_stats || {};
-    const pnlClass = (stats.pnl || 0) >= 0 ? 'positive' : 'negative';
+    if (!alerts || alerts.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#888;">Aucune alerte pour le moment.</p>';
+        return;
+    }
 
-    return `
-        <div class="insider-alert-card type-${typeClass}">
-            <div class="alert-header">
+    container.innerHTML = alerts.map(alert => {
+        // Mapping des types d'alerte pour badge CSS
+        const typeClass = (alert.alert_type || '').toLowerCase();
+        const typeLabel = (alert.alert_type || 'UNKNOWN').replace('_', ' ');
+
+        const stats = alert.wallet_stats || {};
+        const pnlClass = (stats.pnl || 0) >= 0 ? 'positive' : 'negative';
+
+        return `
+            <div class="insider-alert-card type-${typeClass}">
+                <div class="alert-header">
+                    <div>
+                        <span class="alert-type-badge ${typeClass}">${typeLabel}</span>
+                        <span class="alert-wallet-address">${truncateAddress(alert.wallet_address)}</span>
+                        ${alert.nickname ? `<span class="alert-nickname">(${escapeHtml(alert.nickname)})</span>` : ''}
+                    </div>
+                    <div class="alert-time">${formatTime(alert.timestamp)}</div>
+                </div>
+
+                <div class="alert-market">${escapeHtml(alert.market_question || 'Unknown Market')}</div>
+
+                <!-- NOUVEAU: Details precis du Trigger -->
+                <div class="alert-trigger-info" style="background: rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 4px; margin: 10px 0; border-left: 3px solid #00B0FF;">
+                    <div style="font-weight: bold; font-size: 0.9em; color: #fff;">💡 ${escapeHtml(alert.trigger_details || '')}</div>
+                    <div style="font-size: 1.1em; color: #00E676; margin-top: 4px;">💰 ${escapeHtml(alert.bet_details || '')}</div>
+                </div>
+
+                <div class="alert-stats-row" style="display: flex; gap: 15px; font-size: 0.8em; color: #888; margin-bottom: 10px;">
+                    <span>PnL: <span class="${pnlClass}">$${(stats.pnl || 0).toFixed(0)}</span></span>
+                    <span>WinRate: ${(stats.win_rate || 0).toFixed(0)}%</span>
+                    <span>Trades: ${stats.total_trades || 0}</span>
+                </div>
+
+                <div class="alert-actions" style="display: flex; gap: 10px;">
+                    <a href="${alert.market_url || '#'}" target="_blank" class="btn btn-primary btn-sm" style="flex: 2; text-decoration: none; text-align: center; display: flex; align-items: center; justify-content: center; background-color: #2D9CDB;">
+                        ↗ Voir sur Polymarket
+                    </a>
+                    <button class="btn btn-secondary btn-sm" onclick="followInsiderWallet('${alert.wallet_address}')" style="flex: 1;">
+                        Follow
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="saveInsiderWallet('${alert.wallet_address}')" style="flex: 1;">
+                        Save
+                    </button>
+                </div>
+            </div>
+            `;
+    }).join('');
+}
+
+// ============ PENDING & SAVED WALLETS ============
+
+function loadPendingAndSavedWallets() {
+    // Charger les alertes et les wallets sauvegardés
+    Promise.all([
+        fetch('/api/insider/alerts?limit=50').then(r => r.json()),
+        fetch('/api/insider/saved').then(r => r.json())
+    ]).then(([alertsData, savedData]) => {
+        if (!alertsData.success || !savedData.success) return;
+
+        const alerts = alertsData.alerts || [];
+        const savedWallets = savedData.wallets || [];
+
+        // Créer un Set des adresses sauvegardées pour filtrage rapide
+        const savedAddresses = new Set(savedWallets.map(w => w.address.toLowerCase()));
+
+        // Filtrer les alertes: exclure celles déjà sauvegardées et celles ignorées
+        pendingAlerts = alerts.filter(a => {
+            const addr = (a.wallet_address || '').toLowerCase();
+            return !savedAddresses.has(addr) && !dismissedAlerts.has(a.id || addr);
+        });
+
+        // Mettre à jour les compteurs
+        const pendingCount = document.getElementById('pending-count');
+        if (pendingCount) pendingCount.textContent = pendingAlerts.length;
+
+        const savedCount = document.getElementById('saved-count');
+        if (savedCount) savedCount.textContent = savedWallets.length;
+
+        // Render
+        renderPendingAlerts(pendingAlerts);
+        renderSavedWallets(savedWallets);
+    });
+}
+
+function renderPendingAlerts(alerts) {
+    const container = document.getElementById('pending-alerts-list');
+    if (!container) return;
+
+    if (!alerts || alerts.length === 0) {
+        container.innerHTML = `
+            <p style="color: #888; text-align: center; padding: 20px;">
+                Aucune alerte en attente. Le scanner cherche des wallets suspects...
+            </p>
+        `;
+        return;
+    }
+
+    container.innerHTML = alerts.map(alert => {
+        const typeClass = (alert.alert_type || '').toLowerCase();
+        const typeLabel = (alert.alert_type || 'UNKNOWN').replace('_', ' ');
+        const stats = alert.wallet_stats || {};
+        const pnlClass = (stats.pnl || 0) >= 0 ? 'positive' : 'negative';
+
+        return `
+        <div class="pending-alert-card" data-alert-id="${alert.id || alert.wallet_address}">
+            <div class="pending-alert-header">
                 <div>
                     <span class="alert-type-badge ${typeClass}">${typeLabel}</span>
-                    <span class="alert-wallet-address">${truncateAddress(alert.wallet_address)}</span>
+                    <span class="pending-alert-wallet">${truncateAddress(alert.wallet_address)}</span>
                     ${alert.nickname ? `<span class="alert-nickname">(${escapeHtml(alert.nickname)})</span>` : ''}
                 </div>
-                <div class="alert-time">${formatTime(alert.timestamp)}</div>
+                <div class="pending-alert-time">${formatTime(alert.timestamp)}</div>
             </div>
 
-            <div class="alert-market">${escapeHtml(alert.market_question || 'Unknown Market')}</div>
+            <div class="pending-alert-market">📊 ${escapeHtml(alert.market_question || 'Marché inconnu')}</div>
 
-            <!-- NOUVEAU: Details precis du Trigger -->
-            <div class="alert-trigger-info" style="background: rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 4px; margin: 10px 0; border-left: 3px solid #00B0FF;">
-                <div style="font-weight: bold; font-size: 0.9em; color: #fff;">💡 ${escapeHtml(alert.trigger_details || '')}</div>
-                <div style="font-size: 1.1em; color: #00E676; margin-top: 4px;">💰 ${escapeHtml(alert.bet_details || '')}</div>
+            <div class="pending-alert-details">
+                <div class="pending-alert-trigger">💡 ${escapeHtml(alert.trigger_details || 'Trigger détecté')}</div>
+                <div class="pending-alert-bet">💰 ${escapeHtml(alert.bet_details || '')}</div>
             </div>
 
-            <div class="alert-stats-row" style="display: flex; gap: 15px; font-size: 0.8em; color: #888; margin-bottom: 10px;">
+            <div class="pending-alert-stats">
                 <span>PnL: <span class="${pnlClass}">$${(stats.pnl || 0).toFixed(0)}</span></span>
                 <span>WinRate: ${(stats.win_rate || 0).toFixed(0)}%</span>
                 <span>Trades: ${stats.total_trades || 0}</span>
+                <a href="${alert.market_url || '#'}" target="_blank" style="color: #00B0FF; text-decoration: none;">↗ Marché</a>
+                <a href="https://polymarket.com/profile/${alert.wallet_address}" target="_blank" style="color: #00E676; text-decoration: none;">👤 Profil</a>
             </div>
 
-            <div class="alert-actions" style="display: flex; gap: 10px;">
-                <a href="${alert.market_url || '#'}" target="_blank" class="btn btn-primary btn-sm" style="flex: 2; text-decoration: none; text-align: center; display: flex; align-items: center; justify-content: center; background-color: #2D9CDB;">
-                    ↗ Voir sur Polymarket
-                </a>
-                <button class="btn btn-secondary btn-sm" onclick="followInsiderWallet('${alert.wallet_address}')" style="flex: 1;">
-                    Follow
+            <div class="pending-alert-actions">
+                <button class="btn btn-save btn-sm" onclick="saveAlertWallet('${alert.wallet_address}', '${escapeHtml(alert.nickname || '')}', '${alert.id || alert.wallet_address}')">
+                    💾 Sauvegarder
                 </button>
-                <button class="btn btn-secondary btn-sm" onclick="saveInsiderWallet('${alert.wallet_address}')" style="flex: 1;">
-                    Save
+                <button class="btn btn-primary btn-sm" onclick="viewWalletTrades('${alert.wallet_address}')" style="background: #9C27B0;">
+                    📊 Voir Trades
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="followInsiderWallet('${alert.wallet_address}')" style="background: #2D9CDB;">
+                    📋 Follow
+                </button>
+                <button class="btn btn-dismiss btn-sm" onclick="dismissAlert('${alert.id || alert.wallet_address}')">
+                    ✕
                 </button>
             </div>
         </div>
         `;
-}).join('');
+    }).join('');
 }
 
 // ============ WALLET ACTIONS ============
+
+function saveAlertWallet(address, nickname, alertId) {
+    const finalNickname = nickname || prompt('Nickname pour ce wallet (optionnel):') || '';
+
+    fetch('/api/insider/save_wallet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            address: address,
+            nickname: finalNickname,
+            notes: 'Sauvegardé depuis alerte scanner'
+        })
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                // Retirer de la liste pending
+                const card = document.querySelector(`[data-alert-id="${alertId}"]`);
+                if (card) {
+                    card.style.transition = 'all 0.3s';
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateX(100px)';
+                    setTimeout(() => {
+                        loadPendingAndSavedWallets();
+                    }, 300);
+                } else {
+                    loadPendingAndSavedWallets();
+                }
+            } else {
+                alert('Erreur: ' + (data.error || 'Unknown'));
+            }
+        })
+        .catch(e => {
+            console.error('Save wallet error:', e);
+            alert('Erreur de sauvegarde');
+        });
+}
+
+function dismissAlert(alertId) {
+    // Ajouter à la liste des alertes ignorées
+    dismissedAlerts.add(alertId);
+    saveDismissedAlerts();
+
+    // Animation de sortie
+    const card = document.querySelector(`[data-alert-id="${alertId}"]`);
+    if (card) {
+        card.style.transition = 'all 0.3s';
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(-100px)';
+        setTimeout(() => {
+            loadPendingAndSavedWallets();
+        }, 300);
+    } else {
+        loadPendingAndSavedWallets();
+    }
+}
+
+function viewWalletTrades(address) {
+    // Ouvrir la page profil Polymarket du wallet pour voir ses trades
+    const profileUrl = `https://polymarket.com/profile/${address}`;
+    window.open(profileUrl, '_blank');
+}
 
 function followInsiderWallet(address) {
     // Utiliser la modale de config wallet existante
@@ -291,6 +485,7 @@ function saveInsiderWallet(address) {
             if (data.success) {
                 alert('Wallet sauvegarde!');
                 loadSavedWallets();
+                loadPendingAndSavedWallets();
             } else {
                 alert('Erreur: ' + (data.error || 'Unknown'));
             }
@@ -317,10 +512,14 @@ function renderSavedWallets(wallets) {
     const container = document.getElementById('saved-wallets-list');
     if (!container) return;
 
+    // Mettre à jour le compteur
+    const savedCount = document.getElementById('saved-count');
+    if (savedCount) savedCount.textContent = wallets ? wallets.length : 0;
+
     if (!wallets || wallets.length === 0) {
         container.innerHTML = `
             <p style="color: #888; text-align: center; padding: 20px;">
-                Aucun wallet sauvegarde. Utilisez le bouton "Save" sur une alerte pour ajouter.
+                Aucun wallet sauvegardé. Utilisez le bouton "💾 Sauvegarder" sur une alerte ci-dessus.
             </p>
         `;
         return;
@@ -351,14 +550,17 @@ function renderSavedWallets(wallets) {
                 </div>
             </div>
             <div class="saved-wallet-actions">
-                <button class="btn btn-secondary btn-sm" onclick="viewWalletStats('${w.address}')">
-                    Refresh
+                <button class="btn btn-secondary btn-sm" onclick="viewWalletTrades('${w.address}')" title="Voir les trades sur Polymarket">
+                    📊
                 </button>
-                <button class="btn btn-primary btn-sm" onclick="followInsiderWallet('${w.address}')">
-                    Follow
+                <button class="btn btn-secondary btn-sm" onclick="viewWalletStats('${w.address}')" title="Rafraîchir les stats">
+                    🔄
                 </button>
-                <button class="btn btn-danger btn-sm" onclick="removeSavedWallet('${w.address}')">
-                    Remove
+                <button class="btn btn-primary btn-sm" onclick="followInsiderWallet('${w.address}')" title="Suivre ce wallet">
+                    📋
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="removeSavedWallet('${w.address}')" title="Supprimer">
+                    🗑️
                 </button>
             </div>
         </div>
@@ -381,6 +583,8 @@ Total Trades: ${stats.total_trades || 0}
 
 Alertes enregistrees: ${data.alerts_count || 0}
             `);
+                // Recharger pour afficher les stats mises à jour
+                loadPendingAndSavedWallets();
             } else {
                 alert('Erreur: ' + (data.error || 'Unknown'));
             }
@@ -394,7 +598,7 @@ function removeSavedWallet(address) {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                loadSavedWallets();
+                loadPendingAndSavedWallets();
             } else {
                 alert('Erreur: ' + (data.error || 'Unknown'));
             }
@@ -407,14 +611,15 @@ function initInsiderWebSocket() {
     if (typeof socket !== 'undefined') {
         socket.on('insider_alert', (alert) => {
             console.log('New insider alert:', alert);
-            // Recharger le feed
+            // Recharger le feed et les pending
             loadInsiderAlerts();
             loadInsiderStats();
+            loadPendingAndSavedWallets();
 
             // Notification optionnelle (si permissions accordees)
             if (Notification.permission === 'granted') {
-                new Notification('Insider Alert!', {
-                    body: `Score ${alert.suspicion_score}: ${(alert.market_question || '').slice(0, 50)}...`,
+                new Notification('🚨 Insider Alert!', {
+                    body: `${alert.alert_type}: ${(alert.market_question || '').slice(0, 50)}...`,
                     icon: '/static/img/alert-icon.png'
                 });
             }
@@ -454,22 +659,26 @@ function escapeHtml(text) {
 // ============ INITIALIZATION ============
 
 function initInsiderTracker() {
+    loadDismissedAlerts();
     loadInsiderConfig();
     loadInsiderStats();
     loadInsiderAlerts();
-    loadSavedWallets();
+    loadPendingAndSavedWallets();
     initInsiderWebSocket();
 }
 
 // Export pour main.js
 window.initInsiderTracker = initInsiderTracker;
 window.toggleInsiderScanner = toggleInsiderScanner;
-window.onInsiderPresetChange = onInsiderPresetChange;
 window.toggleCategory = toggleCategory;
-window.updateWeightDisplay = updateWeightDisplay;
 window.saveInsiderConfig = saveInsiderConfig;
 window.triggerManualScan = triggerManualScan;
 window.followInsiderWallet = followInsiderWallet;
 window.saveInsiderWallet = saveInsiderWallet;
+window.saveAlertWallet = saveAlertWallet;
+window.dismissAlert = dismissAlert;
+window.viewWalletTrades = viewWalletTrades;
 window.viewWalletStats = viewWalletStats;
 window.removeSavedWallet = removeSavedWallet;
+window.loadPendingAndSavedWallets = loadPendingAndSavedWallets;
+

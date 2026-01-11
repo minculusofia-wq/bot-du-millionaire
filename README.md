@@ -25,12 +25,18 @@
 4. **Historique** - Historique complet des trades et PnL
 5. **Paramètres** - Configuration API et gestion des risques
 
-### ✨ Nouveautés v2.4 (Dernière Mise à Jour)
-- **🔍 Insider Scanner v2.4** : Intégration profonde de la blockchain via **Goldsky** et **Polygonscan** pour une analyse précise des positions et du PnL des wallets.
-- **📊 Stats Persistantes** : Les wallets sauvegardés mémorisent désormais leur **PnL** et **WinRate** en base de données, avec affiche direct sur les cartes de l'interface.
-- **🔄 Synchronisation Auto** : Vos wallets suivis pour le Copy Trading sont automatiquement synchronisés avec le module Insider au démarrage.
-- **🎨 Interface Adaptative** : Fenêtres de configuration (modals) désormais entièrement scrollables et badges de source (`SCANNER` / `MANUAL`) ajoutés.
-- **🛠️ Robustesse Backend** : Profilage en arrière-plan et réconciliation automatique des données pour une expérience fluide.
+### ✨ Nouveautés v2.5 (Mise à Jour Majeure)
+- **🚨 Interface Alertes Avancée** :
+  - **Alertes en Attente** : Gérez les nouvelles détections (Sauvegarder / Ignorer / Suivre).
+  - **Affichage Riche** : Voir le Trigger, PnL, WinRate en un coup d'œil.
+- **🏆 Benchmark Wallets** : Classement automatique des meilleurs traders suivis (PnL & WinRate).
+- **🛠️ UX Améliorée** : Bouton direct pour voir l'historique des trades sur Polymarket.
+- **📊 Stats Persistantes** : Suivi précis du PnL et WinRate stocké en base de données.
+
+### ⚡ Optimisations v2.4
+- **🔍 Insider Scanner Integrations** : Goldsky & Polygonscan pour une précision maximale.
+- **🔄 Sync Auto** : Synchronisation entre le Copy Trading et le Scanner.
+- **🎨 Interface** : Amélioration des modals et badges de source.
 
 ### ⚡ Optimisations v2.2
 - **🛡️ Sécurité Maximale (Machine Binding)** : Vos identifiants sont désormais physiquement liés à votre matériel (UUID). Même en cas de vol du fichier `.env`, ils sont indéchiffrables sur une autre machine.
