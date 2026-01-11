@@ -233,7 +233,8 @@ class DBManager:
             ('source', 'TEXT DEFAULT "SCANNER"'),
             ('pnl', 'REAL DEFAULT 0'),
             ('win_rate', 'REAL DEFAULT 0'),
-            ('nickname', 'TEXT')
+            ('nickname', 'TEXT'),
+            ('saved_at', 'TEXT DEFAULT CURRENT_TIMESTAMP')
         ]
         for col, col_type in migrations:
             try:

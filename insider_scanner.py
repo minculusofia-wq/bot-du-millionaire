@@ -39,6 +39,7 @@ class InsiderAlert:
     wallet_stats: Dict
     timestamp: str
     dedup_key: str
+    suspicion_score: int = 70  # Score de suspicion (requis par DB)
     nickname: str = ""
 
     def to_dict(self) -> Dict:
@@ -223,7 +224,7 @@ class InsiderScanner:
         """ % (limit, condition_id)
 
         try:
-            resp = requests.post(self.GOLDSKY_POSITIONS, json={'query': query}, timeout=5)
+            resp = requests.post(self.GOLDSKY_POSITIONS, json={'query': query}, timeout=15)
             
             current_holders = {} # {user: balance}
             activities = []
@@ -350,20 +351,7 @@ class InsiderScanner:
             return None
 
     def get_wallet_performance(self, address: str) -> Dict:
-        """Calcule les stats de performance d'un wallet via Polymarket Subgraph"""
-        query = """
-        {
-          userBalances(first: 200, where: {user: "%s"}) {
-            id
-            balance
-            cost
-            asset {
-              id
-            }
-          }
-        }
-        """ % address.lower()
-
+        """Calcule les stats de performance d'un wallet via Gamma API public-profile"""
         stats = {
             'pnl': 0.0,
             'win_rate': 0.0,
@@ -372,38 +360,86 @@ class InsiderScanner:
         }
 
         try:
-            resp = requests.post(self.GOLDSKY_POSITIONS, json={'query': query}, timeout=10)
+            # Utiliser l'API Gamma pour les stats du profil (plus fiable que le subgraph)
+            url = f"{self.GAMMA_API}/public-profile?address={address.lower()}"
+            resp = requests.get(url, timeout=10)
+            
             if resp.status_code == 200:
                 data = resp.json()
-                balances = data.get('data', {}).get('userBalances', [])
-
-                total_cost = 0
-                total_value = 0
-                wins = 0
-                trades = 0
-
-                for b in balances:
-                    balance = float(b.get('balance', 0)) / 1e6  # USDC 6 decimals
-                    cost = float(b.get('cost', 0)) / 1e6
-
-                    if balance > 0.01:  # Filtrer positions negligeables
-                        trades += 1
-                        total_cost += cost
-                        total_value += balance
-                        if balance > cost:
-                            wins += 1
-
-                if trades > 0:
-                    stats['total_trades'] = trades
-                    stats['win_rate'] = round((wins / trades) * 100, 1)
-                    stats['pnl'] = round(total_value - total_cost, 2)
-                    if total_cost > 0:
-                        stats['roi'] = round(((total_value - total_cost) / total_cost) * 100, 1)
-
+                
+                # Extraire les stats disponibles
+                pnl = data.get('pnl') or data.get('profit') or 0
+                win_rate = data.get('winRate') or data.get('win_rate') or 0
+                trades = data.get('tradesCount') or data.get('trades_count') or data.get('betsCount') or 0
+                
+                if isinstance(pnl, str):
+                    pnl = float(pnl.replace('$', '').replace(',', '')) if pnl else 0
+                if isinstance(win_rate, str):
+                    win_rate = float(win_rate.replace('%', '')) if win_rate else 0
+                    
+                stats['pnl'] = round(float(pnl), 2)
+                stats['win_rate'] = round(float(win_rate), 1)
+                stats['total_trades'] = int(trades) if trades else 0
+                
+                # Calcul ROI si on a le volume
+                volume = data.get('volume') or data.get('totalVolume') or 0
+                if volume and float(volume) > 0:
+                    stats['roi'] = round((float(pnl) / float(volume)) * 100, 1)
+                    
         except Exception as e:
-            logger.debug(f"Error getting wallet performance: {e}")
+            logger.debug(f"Error getting wallet performance from Gamma: {e}")
+            
+            # Fallback: utiliser Goldsky subgraph
+            try:
+                query = """
+                {
+                  userBalances(first: 200, where: {user: "%s"}) {
+                    id
+                    balance
+                    cost
+                    asset {
+                      id
+                    }
+                  }
+                }
+                """ % address.lower()
+                
+                resp = requests.post(self.GOLDSKY_POSITIONS, json={'query': query}, timeout=15)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    balances = data.get('data', {}).get('userBalances', [])
+
+                    total_cost = 0
+                    total_value = 0
+                    wins = 0
+                    trades = 0
+
+                    for b in balances:
+                        balance = float(b.get('balance', 0)) / 1e6  # USDC 6 decimals
+                        cost = float(b.get('cost', 0)) / 1e6
+
+                        if balance > 0.01:  # Filtrer positions negligeables
+                            trades += 1
+                            total_cost += cost
+                            total_value += balance
+                            if balance > cost and cost > 0:
+                                wins += 1
+
+                    if trades > 0:
+                        stats['total_trades'] = trades
+                        if total_cost > 0:
+                            stats['win_rate'] = round((wins / trades) * 100, 1)
+                            stats['pnl'] = round(total_value - total_cost, 2)
+                            stats['roi'] = round(((total_value - total_cost) / total_cost) * 100, 1)
+                        else:
+                            # Si on n'a pas le cost, au moins montrer la valeur totale
+                            stats['pnl'] = round(total_value, 2)
+                            
+            except Exception as e2:
+                logger.debug(f"Fallback Goldsky also failed: {e2}")
 
         return stats
+
 
     # =========================================================================
     # TRIGGER DETECTION ALGORITHM
@@ -567,6 +603,25 @@ class InsiderScanner:
         trigger_desc = ", ".join([f"{t['label']} ({t['details']})" for t in active_triggers])
         bet_desc = f"${bet_amount:.0f} sur {bet_outcome} @ {outcome_odds:.2f}"
 
+        # Calculer le score de suspicion basé sur les triggers
+        suspicion_score = 50  # Base score
+        for trigger in active_triggers:
+            if trigger['type'] == 'FRESH_WALLET':
+                suspicion_score += 30  # Nouveau wallet = très suspect
+            elif trigger['type'] == 'WHALE_WAKEUP':
+                suspicion_score += 25  # Reveil dormant = suspect
+            elif trigger['type'] == 'RISKY_BET':
+                suspicion_score += 20  # Pari risqué = modérément suspect
+        
+        # Bonus pour gros montants
+        if bet_amount >= 1000:
+            suspicion_score += 10
+        if bet_amount >= 5000:
+            suspicion_score += 10
+            
+        # Cap à 100
+        suspicion_score = min(suspicion_score, 100)
+
         # Generer l'alerte
         alert = InsiderAlert(
             id=f"alert_{int(datetime.now().timestamp() * 1000)}_{wallet[:8]}",
@@ -584,6 +639,7 @@ class InsiderScanner:
             wallet_stats=wallet_stats,
             timestamp=datetime.now().isoformat(),
             dedup_key=dedup_key,
+            suspicion_score=suspicion_score,
             nickname=self.get_polymarket_username(wallet) or ""
         )
 
@@ -637,9 +693,14 @@ class InsiderScanner:
                             # Sauvegarder en DB
                             if self.db_manager:
                                 try:
+                                    print(f"💾 Saving alert for {alert.wallet_address} to DB...")
                                     self.db_manager.save_insider_alert(alert.to_dict())
+                                    print("✅ Alert saved successfully")
                                 except Exception as e:
+                                    print(f"❌ Error saving alert to DB: {e}")
                                     logger.error(f"Erreur sauvegarde alerte: {e}")
+                            else:
+                                print("❌ DB Manager is None in scanner!")
 
                             # Notifier les callbacks
                             for callback in self.callbacks:

@@ -9,6 +9,8 @@
 </head>
 
 <body>
+    <!-- BANNIÈRE SIGNAUX TEMPS RÉEL -->
+    <div id="signal-banner-container"></div>
     <!-- MODAL CONFIG WALLET -->
     <div id="wallet-config-modal" class="modal-overlay">
         <div class="modal">
@@ -218,29 +220,32 @@
         <!-- ============ LIVE TRADING ============ -->
         <div id="tab-live" class="tab-content">
             <div class="card">
-                <h2>📋 Flux des Trades (Wallets Suivis)</h2>
-                <div id="live-feed" style="max-height: 500px; overflow-y: auto;">
-                    <p style="color: #888; text-align: center; padding: 20px;">
-                        En attente de signaux...
-                    </p>
+                <div class="flex flex-between flex-center" style="margin-bottom: 15px;">
+                    <h2>📋 Flux des Trades (Wallets Suivis)</h2>
+                    <div class="flex gap-10">
+                        <button class="btn btn-secondary btn-sm" onclick="filterFlux('all')">Tout</button>
+                        <button class="btn btn-secondary btn-sm" onclick="filterFlux('BUY')">Achats</button>
+                        <button class="btn btn-secondary btn-sm" onclick="filterFlux('SELL')">Ventes</button>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card">
-                <h2>📊 Derniers Trades Copiés</h2>
-                <table>
+                <table class="flux-table">
                     <thead>
                         <tr>
-                            <th>Date</th>
+                            <th>Heure</th>
+                            <th>Wallet</th>
+                            <th>Action</th>
                             <th>Marché</th>
-                            <th>Position</th>
                             <th>Montant</th>
+                            <th>Prix</th>
                             <th>Status</th>
                         </tr>
                     </thead>
-                    <tbody id="recent-trades">
+                    <tbody id="flux-trades-body">
                         <tr>
-                            <td colspan="5" style="text-align: center; color: #888;">Aucun trade récent</td>
+                            <td colspan="7" style="text-align: center; color: #888; padding: 30px;">
+                                En attente de nouveaux signaux...
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -338,10 +343,18 @@
                     <h2>🔍 Scanner Configuration</h2>
                     <div class="flex flex-between flex-center" style="margin-bottom: 15px;">
                         <span>Scanner Status</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="insider-scanner-toggle" onchange="toggleInsiderScanner()">
-                            <span class="toggle-slider"></span>
-                        </label>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <label
+                                style="display: flex; align-items: center; gap: 5px; font-size: 12px; color: #ccc; cursor: pointer;">
+                                <input type="checkbox" id="insider-sound-toggle" checked>
+                                <span>🔊 Audio</span>
+                            </label>
+                            <span class="status-badge status-off" id="insider-status">Stopped</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="insider-scanner-toggle" onchange="toggleInsiderScanner()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
                     </div>
                     <!-- CONFIG TRIGGERS -->
                     <div class="trigger-config-container" style="display: flex; flex-direction: column; gap: 15px;">
@@ -580,7 +593,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}?v=2.4"></script>
-    <script src="{{ url_for('static', filename='js/insider.js') }}?v=2.1"></script>
+    <script src="{{ url_for('static', filename='js/insider.js') }}?v=2.2"></script>
 </body>
 
 </html>

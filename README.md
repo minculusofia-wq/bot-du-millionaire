@@ -25,6 +25,15 @@
 4. **Historique** - Historique complet des trades et PnL
 5. **Paramètres** - Configuration API et gestion des risques
 
+### 🔔 Notifications & Flux Trades v2.6 (Nouveau)
+- **🚨 Bannière Temps Réel** : Notifications élégantes et non-intrusives pour chaque nouveau signal détecté.
+- **📋 Onglet Flux Trades Amélioré** :
+  - Vue d'ensemble complète de l'activité des wallets suivis.
+  - Historique persistante chargé au démarrage.
+  - Filtres rapides Achats / Ventes.
+- **↗️ Liens Directs Polymarket** : Redirection instantanée vers le marché concerné depuis le Flux ou la Bannière.
+- **🗑️ Gestion du Flux** : Possibilité de supprimer manuellement les alertes du flux "Insider Tracker".
+
 ### ✨ Nouveautés v2.5 (Mise à Jour Majeure)
 - **🚨 Interface Alertes Avancée** :
   - **Alertes en Attente** : Gérez les nouvelles détections (Sauvegarder / Ignorer / Suivre).

@@ -697,11 +697,178 @@ socket.on('position_update', (data) => {
 });
 
 // Écouter les nouveaux signaux
+// Écouter les nouveaux signaux
 socket.on('new_signal', (data) => {
     console.log('🚨 Nouveau signal:', data);
-    // Notification simple
-    alert(`Nouveau signal détecté: ${data.market || 'Inconnu'}`);
+
+    // 1. Afficher la bannière
+    showSignalBanner(data);
+
+    // 2. Ajouter au tableau Flux
+    addTradeToFlux(data);
 });
+
+// ============ SIGNAL BANNER ============
+function showSignalBanner(data) {
+    const container = document.getElementById('signal-banner-container');
+    if (!container) return;
+
+    // Extraire les données
+    const wallet = data.wallet_name || (data.wallet ? data.wallet.slice(0, 10) + '...' : 'Inconnu');
+
+    // Fallback amélioré pour le nom du marché
+    let marketName = 'Marché Inconnu';
+    if (data.market && typeof data.market === 'object') {
+        marketName = data.market.slug || data.market.question || data.market.name || 'Marché Inconnu';
+    } else if (data.market) {
+        marketName = String(data.market);
+    }
+
+    // Slug pour le lien
+    const slug = (data.market && typeof data.market === 'object' && data.market.slug)
+        ? data.market.slug
+        : (typeof data.market === 'string' ? data.market : '');
+
+    // Nettoyer le nom du marché
+    const cleanMarket = marketName.replace(/-/g, ' ').substring(0, 40) + (marketName.length > 40 ? '...' : '');
+
+    const side = data.type || data.side || 'TRADE';
+
+    // Amount vs Value handling
+    // Backend sends normalized amount (shares) and estimated value_usd
+    const value = parseFloat(data.value_usd || data.amount || 0);
+    const shares = parseFloat(data.amount || 0);
+    const price = parseFloat(data.price || (value && shares ? value / shares : 0)).toFixed(2);
+
+    // Créer l'élément
+    const banner = document.createElement('div');
+    banner.className = `signal-banner-item ${side.toLowerCase()}`;
+
+    // Icone selon side
+    const icon = side === 'BUY' ? '🟢' : '🔴';
+
+    banner.innerHTML = `
+        <div class="signal-banner-content" onclick="${slug ? `window.open('https://polymarket.com/event/${slug}', '_blank')` : ''}" style="cursor: ${slug ? 'pointer' : 'default'}">
+            <div class="signal-banner-part">
+                <span class="signal-banner-action">${side}</span>
+            </div>
+            <div class="signal-banner-part">
+                <span class="signal-banner-label">Wallet</span>
+                <span class="signal-banner-value">${wallet}</span>
+            </div>
+            <div class="signal-banner-part" style="flex: 2;">
+                <span class="signal-banner-label">Marché</span>
+                <span class="signal-banner-value">
+                    ${cleanMarket} ${slug ? '↗️' : ''}
+                </span>
+            </div>
+            <div class="signal-banner-part">
+                <span class="signal-banner-label">Montant</span>
+                <span class="signal-banner-value">$${value.toFixed(2)} @ ${price}</span>
+            </div>
+        </div>
+        <button class="signal-banner-close" onclick="event.stopPropagation(); this.parentElement.remove()">✕</button>
+    `;
+
+    // Ajouter au container
+    container.appendChild(banner);
+
+    // Supprimer après 15 secondes
+    setTimeout(() => {
+        if (banner.parentElement) {
+            banner.style.animation = 'fadeOut 0.5s ease-out forwards';
+            setTimeout(() => banner.remove(), 500);
+        }
+    }, 15000);
+}
+
+// ============ FLUX TRADES TABLE ============
+let allFluxTrades = []; // Stockage local
+
+function addTradeToFlux(data) {
+    const tbody = document.getElementById('flux-trades-body');
+    if (!tbody) return;
+
+    // Retirer le message "En attente" si présent
+    if (tbody.children.length === 1 && tbody.children[0].innerText.includes('En attente')) {
+        tbody.innerHTML = '';
+    }
+
+    const now = new Date().toLocaleTimeString();
+    const wallet = data.wallet_name || (data.wallet ? data.wallet.substring(0, 8) : 'Unk');
+    const side = data.type || data.side || '???';
+
+    // Fallback amélioré pour le nom du marché
+    let marketName = 'Marché Inconnu';
+    if (data.market && typeof data.market === 'object') {
+        marketName = data.market.slug || data.market.question || data.market.name || 'Marché Inconnu';
+    } else if (data.market) {
+        marketName = String(data.market);
+    }
+
+    const slug = (data.market && typeof data.market === 'object' && data.market.slug)
+        ? data.market.slug
+        : (typeof data.market === 'string' ? data.market : '');
+
+    const market = marketName.replace(/-/g, ' ').substring(0, 30);
+
+    const value = parseFloat(data.value_usd || data.amount || 0);
+    // const shares = parseFloat(data.amount || 0);
+    const price = parseFloat(data.price || 0); // Backend might not send price for Goldsky event, but we estimated value
+
+    // Est-ce que price == 0 ? Si oui on essaie de l'inférer
+    const displayPrice = price > 0 ? price : (data.market && data.market.yes_price ? data.market.yes_price : 0);
+
+    // Créer l'objet trade pour le stockage
+    const trade = {
+        time: now,
+        wallet,
+        side,
+        market,
+        slug,
+        amount: value.toFixed(2), // Store formatted string for display
+        price: displayPrice.toFixed(2),
+        status: data.status || 'Signal Reçu'
+    };
+    allFluxTrades.unshift(trade); // Ajouter au début
+    if (allFluxTrades.length > 50) allFluxTrades.pop(); // Garder max 50
+
+    // Afficher
+    renderFluxTrades();
+}
+
+function renderFluxTrades(filterSide = 'all') {
+    const tbody = document.getElementById('flux-trades-body');
+    if (!tbody) return;
+
+    const filtered = allFluxTrades.filter(t => filterSide === 'all' || t.side === filterSide);
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #888; padding: 20px;">Aucun trade</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(t => {
+        const sideClass = t.side === 'BUY' ? 'buy' : (t.side === 'SELL' ? 'sell' : '');
+        const marketLink = t.slug ? `<a href="https://polymarket.com/event/${t.slug}" target="_blank" style="color: #fff; text-decoration: none;">${t.market} ↗️</a>` : t.market;
+
+        return `
+        <tr>
+            <td style="color: #888;">${t.time}</td>
+            <td style="color: #00B0FF; font-family: monospace;">${t.wallet}</td>
+            <td><span class="flux-action ${sideClass}">${t.side}</span></td>
+            <td>${marketLink}</td>
+            <td style="font-weight: bold;">$${t.amount}</td>
+            <td style="color: #aaa;">${t.price}</td>
+            <td>${t.status}</td>
+        </tr>
+        `;
+    }).join('');
+}
+
+function filterFlux(side) {
+    renderFluxTrades(side);
+}
 
 // ============ CHART ============
 let pnlChart = null;
@@ -772,21 +939,52 @@ function loadPnLChart() {
         .catch(e => console.error('Erreur chargement chart:', e));
 }
 
+// ============ LOAD HISTORY ============
+function loadFluxHistory() {
+    fetch('/api/history')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.trades) {
+                // Mapper les trades exécutés vers le format Flux
+                data.trades.forEach(t => {
+                    const trade = {
+                        time: new Date(t.timestamp).toLocaleTimeString(),
+                        wallet: t.source_wallet ? t.source_wallet.substring(0, 8) + '...' : 'Bot',
+                        side: t.side,
+                        market: t.market_slug ? t.market_slug.replace(/-/g, ' ').substring(0, 30) : 'Unknown',
+                        amount: t.value_usd,
+                        price: t.price,
+                        status: 'Exécuté'
+                    };
+                    allFluxTrades.push(trade);
+                });
+
+                // Trier par date (récent en premier) est déjà fait par l'API généralement, mais on s'assure
+                // allFluxTrades est déjà un array, on le garde
+                renderFluxTrades();
+            }
+        })
+        .catch(e => console.error('Erreur loading history:', e));
+}
+
 document.addEventListener('DOMContentLoaded', function () {
-    // Initial call to set active tab correctly (already active in HTML but good for safety)
+    // Initial call to set active tab correctly
     if (!document.querySelector('.tab-content.active')) {
         showTab('dashboard');
     }
 
-    // Start polling (Reduced frequency as we have SocketIO)
+    // Start polling
     setInterval(updateUI, 10000);
     updateUI();
 
     // Charger le graphique
     loadPnLChart();
 
-    // Charger le benchmark (si nécessaire)
+    // Charger le benchmark
     if (typeof loadBenchmark === 'function') {
         loadBenchmark();
     }
+
+    // Charger l'historique dans le Flux
+    loadFluxHistory();
 });

@@ -186,7 +186,29 @@ class PolymarketClient:
         """Récupère le carnet d'ordres pour un token (avec cache 30s)."""
         try:
             if self.client:
-                return self.client.get_order_book(token_id)
+                ob = self.client.get_order_book(token_id)
+                # Convertir l'objet OrderBookSummary en dict pour compatibilité
+                if ob and hasattr(ob, 'bids'):
+                    # Convertir les OrderSummary en dicts
+                    def convert_orders(orders):
+                        if not orders:
+                            return []
+                        result = []
+                        for o in orders:
+                            if hasattr(o, 'price') and hasattr(o, 'size'):
+                                result.append({'price': o.price, 'size': o.size})
+                            elif isinstance(o, dict):
+                                result.append(o)
+                        return result
+                    
+                    return {
+                        'bids': convert_orders(ob.bids),
+                        'asks': convert_orders(ob.asks),
+                        'market': getattr(ob, 'market', ''),
+                        'hash': getattr(ob, 'hash', ''),
+                        'timestamp': getattr(ob, 'timestamp', '')
+                    }
+                return None
 
             # REST Fallback
             resp = self.session.get(f"{self.CLOB_HOST}/book", params={'token_id': token_id}, timeout=10)

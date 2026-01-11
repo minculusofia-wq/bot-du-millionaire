@@ -6,17 +6,38 @@
 // ============ STATE ============
 // Stocke les alertes en mémoire pour distinguer pending vs saved
 let pendingAlerts = [];
-let dismissedAlerts = new Set(); // Alertes ignorées (stockées en localStorage)
+let dismissedAlertIds = new Set(); // Alertes ignorées (par ID si dispo, ou signature)
 
-// Charger les alertes ignorées depuis localStorage
+// Charger les IDs ignorés
 function loadDismissedAlerts() {
     try {
-        const stored = localStorage.getItem('dismissedInsiderAlerts');
+        const stored = localStorage.getItem('dismissedInsiderAlertIds');
         if (stored) {
-            dismissedAlerts = new Set(JSON.parse(stored));
+            dismissedAlertIds = new Set(JSON.parse(stored));
         }
     } catch (e) {
         console.error('Error loading dismissed alerts:', e);
+    }
+}
+
+function saveDismissedAlerts() {
+    try {
+        localStorage.setItem('dismissedInsiderAlertIds', JSON.stringify([...dismissedAlertIds]));
+    } catch (e) {
+        console.error('Error saving dismissed alerts:', e);
+    }
+}
+
+function dismissAlert(id) {
+    if (!id) return;
+    dismissedAlertIds.add(String(id));
+    saveDismissedAlerts();
+
+    // Supprimer visuellement
+    const el = document.getElementById(`alert-${id}`);
+    if (el) {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 300);
     }
 }
 
@@ -237,7 +258,15 @@ function renderAlertFeed(alerts) {
         return;
     }
 
-    container.innerHTML = alerts.map(alert => {
+    // Filtrer les alertes ignorées
+    const visibleAlerts = alerts.filter(a => !dismissedAlertIds.has(String(a.id || a.timestamp)));
+
+    if (visibleAlerts.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#888;">Toutes les alertes ont été ignorées.</p>';
+        return;
+    }
+
+    container.innerHTML = visibleAlerts.map(alert => {
         // Mapping des types d'alerte pour badge CSS
         const typeClass = (alert.alert_type || '').toLowerCase();
         const typeLabel = (alert.alert_type || 'UNKNOWN').replace('_', ' ');
@@ -245,9 +274,14 @@ function renderAlertFeed(alerts) {
         const stats = alert.wallet_stats || {};
         const pnlClass = (stats.pnl || 0) >= 0 ? 'positive' : 'negative';
 
+        // ID unique pour suppression
+        const alertId = alert.id || alert.timestamp;
+
         return `
-            <div class="insider-alert-card type-${typeClass}">
-                <div class="alert-header">
+            <div id="alert-${alertId}" class="insider-alert-card type-${typeClass}" style="position: relative; transition: opacity 0.3s;">
+                <button onclick="dismissAlert('${alertId}')" style="position: absolute; top: 10px; right: 10px; background: none; border: none; color: #666; cursor: pointer; font-size: 16px; z-index: 10;">🗑️</button>
+                
+                <div class="alert-header" style="margin-right: 25px;">
                     <div>
                         <span class="alert-type-badge ${typeClass}">${typeLabel}</span>
                         <span class="alert-wallet-address">${truncateAddress(alert.wallet_address)}</span>
@@ -291,21 +325,24 @@ function renderAlertFeed(alerts) {
 function loadPendingAndSavedWallets() {
     // Charger les alertes et les wallets sauvegardés
     Promise.all([
-        fetch('/api/insider/alerts?limit=50').then(r => r.json()),
-        fetch('/api/insider/saved').then(r => r.json())
+        fetch('/api/insider/alerts?limit=50').then(r => r.json()).catch(e => ({ success: false, error: e })),
+        fetch('/api/insider/saved').then(r => r.json()).catch(e => ({ success: false, error: e }))
     ]).then(([alertsData, savedData]) => {
-        if (!alertsData.success || !savedData.success) return;
+        // Handle partial success
+        const alerts = (alertsData && alertsData.success) ? (alertsData.alerts || []) : [];
+        const savedWallets = (savedData && savedData.success) ? (savedData.wallets || []) : [];
 
-        const alerts = alertsData.alerts || [];
-        const savedWallets = savedData.wallets || [];
+        if (savedData && !savedData.success) {
+            console.warn('Error loading saved wallets:', savedData.error);
+        }
 
         // Créer un Set des adresses sauvegardées pour filtrage rapide
-        const savedAddresses = new Set(savedWallets.map(w => w.address.toLowerCase()));
+        const savedAddresses = new Set(savedWallets.map(w => (w.address || '').toLowerCase()));
 
         // Filtrer les alertes: exclure celles déjà sauvegardées et celles ignorées
         pendingAlerts = alerts.filter(a => {
             const addr = (a.wallet_address || '').toLowerCase();
-            return !savedAddresses.has(addr) && !dismissedAlerts.has(a.id || addr);
+            return !savedAddresses.has(addr) && !dismissedAlertIds.has(String(a.id || a.timestamp));
         });
 
         // Mettre à jour les compteurs
@@ -531,6 +568,7 @@ function renderSavedWallets(wallets) {
             : '<span class="source-badge scanner">SCANNER</span>';
 
         const pnlClass = (w.pnl || 0) >= 0 ? 'positive' : 'negative';
+        const polymarketProfileUrl = `https://polymarket.com/@${encodeURIComponent(w.nickname || w.address)}`;
 
         return `
         <div class="saved-wallet-card">
@@ -541,8 +579,10 @@ function renderSavedWallets(wallets) {
                 </div>
                 <div class="saved-wallet-address">${w.address}</div>
                 <div class="saved-wallet-stats-brief" style="display: flex; gap: 15px; margin-top: 5px; font-size: 0.9em;">
-                    <span class="${pnlClass}">$${(w.pnl || 0).toFixed(2)}</span>
-                    <span style="color: #888;">${(w.win_rate || 0).toFixed(1)}% WR</span>
+                    <span title="Valeur des positions actuelles (pas le PnL réel)" class="${pnlClass}">📊 $${(w.pnl || 0).toFixed(2)}</span>
+                    <a href="${polymarketProfileUrl}" target="_blank" style="color: #00B0FF; text-decoration: none; font-size: 0.85em;" title="Voir le vrai PnL sur Polymarket">
+                        ↗ Profil
+                    </a>
                 </div>
                 <div class="saved-wallet-meta">
                     Saved: ${formatTime(w.saved_at)} |
@@ -607,10 +647,44 @@ function removeSavedWallet(address) {
 
 // ============ WEBSOCKET ============
 
+function playAlertSound() {
+    const toggle = document.getElementById('insider-sound-toggle');
+    if (toggle && !toggle.checked) return;
+
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        // Petit effet "Sonar"
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.1);
+
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+    } catch (e) {
+        console.error('Error playing sound:', e);
+    }
+}
+
 function initInsiderWebSocket() {
     if (typeof socket !== 'undefined') {
         socket.on('insider_alert', (alert) => {
             console.log('New insider alert:', alert);
+
+            // Jouer le son
+            playAlertSound();
+
             // Recharger le feed et les pending
             loadInsiderAlerts();
             loadInsiderStats();

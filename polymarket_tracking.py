@@ -124,7 +124,7 @@ class PolymarketTracker:
         """ % address.lower()
 
         try:
-            resp = requests.post(self.GOLDSKY_POSITIONS, json={'query': query}, timeout=10)
+            resp = requests.post(self.GOLDSKY_POSITIONS, json={'query': query}, timeout=20)
 
             if resp.status_code == 200:
                 data = resp.json()
@@ -168,13 +168,18 @@ class PolymarketTracker:
                 # Enrichir avec infos marché
                 market_info = self.get_market_info(asset_id)
 
+                # Normalisation Amount (Assumption: 6 decimals for USDC markets)
+                amount_norm = diff / 1e6
+                balance_norm = balance / 1e6
+
                 changes.append({
                     "type": "BUY",
                     "wallet": address,
                     "wallet_name": wallet_info.get('name', 'Unknown'),
                     "asset_id": asset_id,
-                    "amount": diff,
-                    "total_balance": balance,
+                    "amount": amount_norm,
+                    "value_usd": amount_norm * market_info.get('yes_price', 0.5), # Estimation basic
+                    "total_balance": balance_norm,
                     "market": market_info,
                     "capital_allocated": wallet_info.get('capital_allocated', 0),
                     "percent_per_trade": wallet_info.get('percent_per_trade', 0),
@@ -188,6 +193,8 @@ class PolymarketTracker:
             new_balance = current_map.get(asset_id, 0)
             if new_balance < old_balance:
                 diff = old_balance - new_balance
+                amount_norm = diff / 1e6
+                balance_norm = new_balance / 1e6
 
                 market_info = self.get_market_info(asset_id)
 
@@ -196,8 +203,9 @@ class PolymarketTracker:
                     "wallet": address,
                     "wallet_name": wallet_info.get('name', 'Unknown'),
                     "asset_id": asset_id,
-                    "amount": diff,
-                    "remaining_balance": new_balance,
+                    "amount": amount_norm,
+                    "value_usd": amount_norm * market_info.get('yes_price', 0.5),
+                    "remaining_balance": balance_norm,
                     "market": market_info,
                     "timestamp": datetime.now().isoformat(),
                     "source": "goldsky"

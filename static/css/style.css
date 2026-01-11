@@ -1152,3 +1152,135 @@ select option {
     gap: 8px;
     flex-shrink: 0;
 }
+/* ============ SIGNAL BANNER ============ */
+#signal-banner-container {
+    position: fixed;
+    top: 80px; /* Just below header */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 800px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none; /* Let clicks pass through container */
+}
+
+.signal-banner-item {
+    pointer-events: auto; /* Enable clicks on banner items */
+    background: rgba(10, 10, 26, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-left: 5px solid #888;
+    padding: 15px 20px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    color: #fff;
+    font-family: 'Segoe UI', sans-serif;
+    animation: slideDown 0.5s ease-out;
+    transition: all 0.3s ease;
+}
+
+.signal-banner-item.buy {
+    border-left-color: #00E676;
+    background: linear-gradient(90deg, rgba(0, 230, 118, 0.1), rgba(10, 10, 26, 0.95));
+}
+
+.signal-banner-item.sell {
+    border-left-color: #FF5252;
+    background: linear-gradient(90deg, rgba(255, 82, 82, 0.1), rgba(10, 10, 26, 0.95));
+}
+
+.signal-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+}
+
+.signal-banner-part {
+    display: flex;
+    flex-direction: column;
+}
+
+.signal-banner-label {
+    font-size: 10px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.signal-banner-value {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.signal-banner-action {
+    font-weight: 900;
+    font-size: 16px;
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+
+.signal-banner-item.buy .signal-banner-action { color: #00E676; background: rgba(0, 230, 118, 0.2); }
+.signal-banner-item.sell .signal-banner-action { color: #FF5252; background: rgba(255, 82, 82, 0.2); }
+
+.signal-banner-close {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px;
+    margin-left: 15px;
+}
+
+.signal-banner-close:hover {
+    color: #fff;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+    to { opacity: 0; transform: translateX(50px); }
+}
+
+/* ============ FLUX TABLE ============ */
+.flux-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.flux-table th {
+    background: rgba(0,0,0,0.2);
+    color: #aaa;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+}
+
+.flux-table td {
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    padding: 12px 10px;
+    font-size: 14px;
+}
+
+.flux-table tr:hover {
+    background: rgba(255,255,255,0.02);
+}
+
+.flux-action {
+    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.flux-action.buy { background: rgba(0,230,118,0.1); color: #00E676; }
+.flux-action.sell { background: rgba(255,82,82,0.1); color: #FF5252; }
+
