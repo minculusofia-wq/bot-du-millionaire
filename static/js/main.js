@@ -844,13 +844,14 @@ function renderFluxTrades(filterSide = 'all') {
     const filtered = allFluxTrades.filter(t => filterSide === 'all' || t.side === filterSide);
 
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #888; padding: 20px;">Aucun trade</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #888; padding: 20px;">Aucun trade</td></tr>';
         return;
     }
 
     tbody.innerHTML = filtered.map(t => {
         const sideClass = t.side === 'BUY' ? 'buy' : (t.side === 'SELL' ? 'sell' : '');
-        const marketLink = t.slug ? `<a href="https://polymarket.com/event/${t.slug}" target="_blank" style="color: #fff; text-decoration: none;">${t.market} ↗️</a>` : t.market;
+        const marketName = t.market || 'Marché Inconnu';
+        const marketLink = t.slug ? `<a href="https://polymarket.com/event/${t.slug}" target="_blank" style="color: #00B0FF; text-decoration: none;">${marketName} ↗️</a>` : marketName;
 
         return `
         <tr>
@@ -861,6 +862,9 @@ function renderFluxTrades(filterSide = 'all') {
             <td style="font-weight: bold;">$${t.amount}</td>
             <td style="color: #aaa;">${t.price}</td>
             <td>${t.status}</td>
+            <td>
+                ${t.slug ? `<button class="btn btn-sm" onclick="window.open('https://polymarket.com/event/${t.slug}', '_blank')" style="background: rgba(0, 176, 255, 0.2); color: #00B0FF; border: 1px solid #00B0FF; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;">Voir</button>` : '-'}
+            </td>
         </tr>
         `;
     }).join('');

@@ -171,6 +171,8 @@ class PolymarketTracker:
                 # Normalisation Amount (Assumption: 6 decimals for USDC markets)
                 amount_norm = diff / 1e6
                 balance_norm = balance / 1e6
+                
+                logger.info(f"🔔 Signal {address}: BUY {amount_norm:.2f} shares (Raw: {diff})")
 
                 changes.append({
                     "type": "BUY",

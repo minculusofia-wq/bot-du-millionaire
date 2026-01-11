@@ -37,15 +37,7 @@ function dismissAlert(id) {
     const el = document.getElementById(`alert-${id}`);
     if (el) {
         el.style.opacity = '0';
-        setTimeout(() => el.remove(), 300);
-    }
-}
-
-function saveDismissedAlerts() {
-    try {
-        localStorage.setItem('dismissedInsiderAlerts', JSON.stringify([...dismissedAlerts]));
-    } catch (e) {
-        console.error('Error saving dismissed alerts:', e);
+        setTimeout(() => el.remove(), 400);
     }
 }
 
@@ -276,10 +268,12 @@ function renderAlertFeed(alerts) {
 
         // ID unique pour suppression
         const alertId = alert.id || alert.timestamp;
+        const marketName = alert.market_question || 'Marché Inconnu';
+        const marketUrl = alert.market_url || (alert.market_slug ? `https://polymarket.com/event/${alert.market_slug}` : '#');
 
         return `
             <div id="alert-${alertId}" class="insider-alert-card type-${typeClass}" style="position: relative; transition: opacity 0.3s;">
-                <button onclick="dismissAlert('${alertId}')" style="position: absolute; top: 10px; right: 10px; background: none; border: none; color: #666; cursor: pointer; font-size: 16px; z-index: 10;">🗑️</button>
+                <button onclick="dismissAlert('${alertId}')" style="position: absolute; top: 10px; right: 10px; background: none; border: none; color: #666; cursor: pointer; font-size: 16px; z-index: 10;" title="Ignorer cette alerte">🗑️</button>
                 
                 <div class="alert-header" style="margin-right: 25px;">
                     <div>
@@ -290,9 +284,13 @@ function renderAlertFeed(alerts) {
                     <div class="alert-time">${formatTime(alert.timestamp)}</div>
                 </div>
 
-                <div class="alert-market">${escapeHtml(alert.market_question || 'Unknown Market')}</div>
+                <div class="alert-market">
+                    <a href="${marketUrl}" target="_blank" style="color: #fff; text-decoration: none;">
+                        📊 ${escapeHtml(marketName)} <span style="color: #00B0FF;">↗️</span>
+                    </a>
+                </div>
 
-                <!-- NOUVEAU: Details precis du Trigger -->
+                <!-- Details precis du Trigger -->
                 <div class="alert-trigger-info" style="background: rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 4px; margin: 10px 0; border-left: 3px solid #00B0FF;">
                     <div style="font-weight: bold; font-size: 0.9em; color: #fff;">💡 ${escapeHtml(alert.trigger_details || '')}</div>
                     <div style="font-size: 1.1em; color: #00E676; margin-top: 4px;">💰 ${escapeHtml(alert.bet_details || '')}</div>
@@ -305,8 +303,8 @@ function renderAlertFeed(alerts) {
                 </div>
 
                 <div class="alert-actions" style="display: flex; gap: 10px;">
-                    <a href="${alert.market_url || '#'}" target="_blank" class="btn btn-primary btn-sm" style="flex: 2; text-decoration: none; text-align: center; display: flex; align-items: center; justify-content: center; background-color: #2D9CDB;">
-                        ↗ Voir sur Polymarket
+                    <a href="${marketUrl}" target="_blank" class="btn btn-primary btn-sm" style="flex: 2; text-decoration: none; text-align: center; display: flex; align-items: center; justify-content: center; background-color: #2D9CDB;">
+                        📂 Ouvrir le Marché
                     </a>
                     <button class="btn btn-secondary btn-sm" onclick="followInsiderWallet('${alert.wallet_address}')" style="flex: 1;">
                         Follow
@@ -318,6 +316,21 @@ function renderAlertFeed(alerts) {
             </div>
             `;
     }).join('');
+}
+
+function dismissAlert(id) {
+    if (!id) return;
+    console.log('Dismissing alert:', id);
+    dismissedAlertIds.add(String(id));
+    saveDismissedAlerts();
+
+    // Supprimer visuellement
+    const el = document.getElementById(`alert-${id}`);
+    if (el) {
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(-20px)';
+        setTimeout(() => el.remove(), 400);
+    }
 }
 
 // ============ PENDING & SAVED WALLETS ============
