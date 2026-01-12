@@ -158,6 +158,11 @@ try:
     # Enregistrer le blueprint
     app.register_blueprint(insider_bp)
 
+    # Auto-démarrage si configuré
+    if insider_scanner.config.get('auto_start', False):
+         print("🔄 Redémarrage automatique du Insider Scanner...")
+         insider_scanner.start_scanning()
+
     print("✅ Insider Tracker chargé")
 except ImportError as e:
     print(f"⚠️ Insider Tracker non disponible: {e}")

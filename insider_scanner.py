@@ -768,6 +768,10 @@ class InsiderScanner:
             self.scan_interval = interval
 
         self.running = True
+        
+        # Persist state
+        self.config['auto_start'] = True
+        self.save_config_to_file()
 
         def scan_loop():
             logger.info(f"🚀 Insider Scanner demarre (intervalle: {self.scan_interval}s)")
@@ -787,6 +791,11 @@ class InsiderScanner:
     def stop_scanning(self):
         """Arrete la boucle de scan"""
         self.running = False
+        
+        # Persist state
+        self.config['auto_start'] = False
+        self.save_config_to_file()
+        
         logger.info("🛑 Insider Scanner arrete")
 
     def get_polymarket_username(self, address: str) -> Optional[str]:
