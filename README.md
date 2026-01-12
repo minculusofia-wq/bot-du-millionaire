@@ -25,22 +25,16 @@
 4. **Historique** - Historique complet des trades et PnL
 5. **Paramètres** - Configuration API et gestion des risques
 
-### 🔔 Notifications & Flux Trades v2.6 (Nouveau)
-- **🚨 Bannière Temps Réel** : Notifications élégantes et non-intrusives pour chaque nouveau signal détecté.
-- **📋 Onglet Flux Trades Amélioré** :
-  - Vue d'ensemble complète de l'activité des wallets suivis.
-  - Historique persistante chargé au démarrage.
-  - Filtres rapides Achats / Ventes.
-- **↗️ Liens Directs Polymarket** : Redirection instantanée vers le marché concerné depuis le Flux ou la Bannière.
-- **🗑️ Gestion du Flux** : Possibilité de supprimer manuellement les alertes du flux "Insider Tracker".
+### ✨ Nouveautés v2.8 (Mise à Jour Finale)
+- **🚨 Scanner Insider Robuste** : Système de suppression d'alertes infaillible (Feed & Pending).
+- **💾 Configuration Persistante** : Vos réglages scanner survivent au redémarrage.
+- **🔗 Intégration Flux** : Liens directs vers les marchés Polymarket depuis le banner et le tableau.
+- **📊 Données Précises** : Normalisation des montants USDC et affichage propre.
 
-### ✨ Nouveautés v2.5 (Mise à Jour Majeure)
-- **🚨 Interface Alertes Avancée** :
-  - **Alertes en Attente** : Gérez les nouvelles détections (Sauvegarder / Ignorer / Suivre).
-  - **Affichage Riche** : Voir le Trigger, PnL, WinRate en un coup d'œil.
-- **🏆 Benchmark Wallets** : Classement automatique des meilleurs traders suivis (PnL & WinRate).
-- **🛠️ UX Améliorée** : Bouton direct pour voir l'historique des trades sur Polymarket.
-- **📊 Stats Persistantes** : Suivi précis du PnL et WinRate stocké en base de données.
+## 📋 Pré-requis Obligatoires
+Pour utiliser ce bot, vous devez avoir des fonds sur **Polygon (MATIC)** :
+1.  **USDC (Polygon)** : Sur votre compte Polymarket (Proxy) pour trader.
+2.  **MATIC (Polygon)** : Sur votre wallet MetaMask/EOA pour les frais de réseau (1-2$ suffisent).
 
 ### ⚡ Optimisations v2.4
 - **🔍 Insider Scanner Integrations** : Goldsky & Polygonscan pour une précision maximale.

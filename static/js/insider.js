@@ -317,7 +317,6 @@ function renderAlertFeed(alerts) {
 
 function dismissAlert(id) {
     if (!id) return;
-    console.log('Dismissing alert:', id);
     dismissedAlertIds.add(String(id));
     saveDismissedAlerts();
 
