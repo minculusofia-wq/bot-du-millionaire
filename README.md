@@ -25,7 +25,12 @@
 4. **Historique** - Historique complet des trades et PnL
 5. **Paramètres** - Configuration API et gestion des risques
 
-### ✨ Nouveautés v2.8 (Mise à Jour Finale)
+### ✨ Nouveautés v2.9 (Audit & Optimisation)
+- **🚀 Migration Polygonscan V2** : Passage à l'API Etherscan V2 pour une détection infaillible des wallets (V1 dépréciée).
+- **⚖️ Seuils de Détection Optimisés** : Ajustement des cotes (0.35) et des montants ($300) pour capturer plus de signaux pertinents.
+- **🛡️ Robustesse API** : Meilleure gestion des erreurs et logging détaillé pour le monitoring.
+
+### ✨ Nouveautés v2.8
 - **🚨 Scanner Insider Robuste** : Système de suppression d'alertes infaillible (Feed & Pending).
 - **💾 Configuration Persistante** : Vos réglages scanner survivent au redémarrage.
 - **🔗 Intégration Flux** : Liens directs vers les marchés Polymarket depuis le banner et le tableau.

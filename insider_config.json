@@ -1,0 +1,25 @@
+{
+    "risky_bet": {
+        "enabled": true,
+        "min_amount": 50,
+        "max_odds": 0.35,
+        "high_amount": 1000.0
+    },
+    "whale_wakeup": {
+        "enabled": true,
+        "min_amount": 100,
+        "dormant_days": 15
+    },
+    "fresh_wallet": {
+        "enabled": true,
+        "max_tx": 5,
+        "min_amount": 300
+    },
+    "categories": [
+        "politics",
+        "sports",
+        "crypto",
+        "pop-culture"
+    ],
+    "auto_start": true
+}

@@ -55,7 +55,9 @@ class InsiderScanner:
     GAMMA_API = "https://gamma-api.polymarket.com"
     GOLDSKY_POSITIONS = "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/positions-subgraph/0.0.7/gn"
     GOLDSKY_ACTIVITY = "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/activity-subgraph/0.0.4/gn"
-    POLYGONSCAN_API = "https://api.polygonscan.com/api"
+    # Polygonscan API V2 (V1 is deprecated)
+    POLYGONSCAN_API = "https://api.etherscan.io/v2/api"
+    POLYGON_CHAINID = 137  # Polygon mainnet
 
     # Categories de marches a scanner
     DEFAULT_CATEGORIES = ["politics", "sports", "crypto", "pop-culture"]
@@ -249,7 +251,6 @@ class InsiderScanner:
             balance
             asset {
               id
-              token_id
             }
           }
         }
@@ -322,7 +323,9 @@ class InsiderScanner:
                 return cached['count']
 
         try:
+            # API V2 requires chainid parameter
             params = {
+                'chainid': self.POLYGON_CHAINID,
                 'module': 'account',
                 'action': 'txlist',
                 'address': address,
@@ -334,13 +337,20 @@ class InsiderScanner:
             resp = requests.get(self.POLYGONSCAN_API, params=params, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
+                # V2 API returns status '1' on success
                 if data.get('status') == '1':
                     count = len(data.get('result', []))
                     self._wallet_tx_cache[addr_lower] = {'count': count, 'timestamp': datetime.now()}
+                    logger.debug(f"TX count for {address[:10]}...: {count}")
                     return count
+                elif data.get('message') == 'No transactions found':
+                    self._wallet_tx_cache[addr_lower] = {'count': 0, 'timestamp': datetime.now()}
+                    return 0
+                else:
+                    logger.warning(f"Polygonscan API error: {data.get('message', 'Unknown')}")
             return 0
         except Exception as e:
-            logger.debug(f"Polygonscan tx count error: {e}")
+            logger.warning(f"Polygonscan tx count error: {e}")
             return 999
 
     def get_wallet_last_activity(self, address: str) -> Optional[datetime]:
@@ -357,7 +367,9 @@ class InsiderScanner:
                 return cached['last_activity']
 
         try:
+            # API V2 requires chainid parameter
             params = {
+                'chainid': self.POLYGON_CHAINID,
                 'module': 'account',
                 'action': 'txlist',
                 'address': address,
@@ -376,10 +388,13 @@ class InsiderScanner:
                         'last_activity': last_activity,
                         'timestamp': datetime.now()
                     }
+                    logger.debug(f"Last activity for {address[:10]}...: {last_activity}")
                     return last_activity
+                elif data.get('message') == 'No transactions found':
+                    return None
             return None
         except Exception as e:
-            logger.debug(f"Polygonscan last activity error: {e}")
+            logger.warning(f"Polygonscan last activity error: {e}")
             return None
 
     def get_wallet_performance(self, address: str) -> Dict:
