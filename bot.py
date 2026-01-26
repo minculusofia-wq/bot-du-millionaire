@@ -66,6 +66,7 @@ from bot_logic import BotBackend
 from db_manager import db_manager
 from audit_logger import audit_logger
 from secret_manager import secret_manager
+from notification_aggregator import NotificationAggregator
 
 # 🔧 Optimisations
 from logging_config import setup_logging, get_logger
@@ -76,6 +77,18 @@ from cache_manager import start_cleanup_scheduler
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading') # Utiliser threading pour compatibilité simple
+
+# 📬 Notification Aggregator - Gestion fluide des notifications
+def emit_notification(event_name, data):
+    """Callback pour emissions WebSocket depuis l'aggregator."""
+    socketio.emit(event_name, data, namespace='/')
+
+notification_aggregator = NotificationAggregator(
+    emit_callback=emit_notification,
+    emit_interval_ms=500,  # 500ms entre chaque notification (fluidite)
+    high_value_threshold=1000  # $1000+ = haute priorite (immediat)
+)
+print("📬 NotificationAggregator initialise (distribution fluide 500ms)")
 
 # 🔧 Configuration Logging Structuré
 log_level = os.getenv('LOG_LEVEL', 'INFO')
@@ -95,7 +108,11 @@ try:
     
     polymarket_tracker = PolymarketTracker(socketio=socketio)
     polymarket_executor = PolymarketExecutor(backend=backend, socketio=socketio)
-    
+
+    # 📬 Injecter l'aggregator dans le tracker
+    polymarket_tracker.set_notification_aggregator(notification_aggregator)
+    print("📬 Aggregator connecte au Tracker")
+
     # 🔌 CONNEXION CRITIQUE : Connecter le Tracker à l'Exécuteur
     polymarket_tracker.add_callback(polymarket_executor.on_signal_detected)
     print("✅ Tracker connecté à l'Exécuteur")
@@ -127,6 +144,15 @@ except ImportError as e:
 try:
     from polygon_websocket import PolygonWebSocket
     polygon_ws = PolygonWebSocket()
+
+    # 📬 Injecter l'aggregator et les tracked wallets
+    if hasattr(polygon_ws, 'set_notification_aggregator'):
+        polygon_ws.set_notification_aggregator(notification_aggregator)
+        # Sync tracked wallets
+        tracked = [w['address'] for w in backend.data.get('polymarket', {}).get('tracked_wallets', [])]
+        if hasattr(polygon_ws, 'set_tracked_wallets'):
+            polygon_ws.set_tracked_wallets(tracked)
+        print("📬 Aggregator connecte au WebSocket Polygon")
 except ImportError as e:
     print(f"⚠️ WebSocket Polygon non disponible: {e}")
     polygon_ws = None
@@ -168,6 +194,34 @@ except ImportError as e:
     print(f"⚠️ Insider Tracker non disponible: {e}")
     insider_scanner = None
 
+# ⚡ Imports HFT Module (avec fallback)
+try:
+    from hft_module.hft_scanner import HFTScanner
+    from hft_routes import hft_bp, init_hft_routes
+
+    # Initialiser le scanner HFT
+    hft_scanner = HFTScanner(
+        socketio=socketio,
+        db_manager=db_manager,
+        polymarket_client=polymarket_clob
+    )
+
+    # Initialiser les routes avec le scanner
+    init_hft_routes(hft_scanner)
+
+    # Enregistrer le blueprint
+    app.register_blueprint(hft_bp)
+
+    # Auto-démarrage si configuré
+    if hft_scanner.config.get('auto_start', False):
+        print("🔄 Redémarrage automatique du HFT Scanner...")
+        hft_scanner.start()
+
+    print("✅ Module HFT chargé")
+except ImportError as e:
+    print(f"⚠️ Module HFT non disponible: {e}")
+    hft_scanner = None
+
 # ============================================================================
 # INITIALISATION
 # ============================================================================
@@ -182,6 +236,7 @@ print(f"📊 Polymarket: {'Activé' if backend.data.get('polymarket', {}).get('e
 print(f"🔌 WebSocket Polygon: {'Disponible' if polygon_ws else 'Non disponible'}")
 print(f"📈 CLOB Polymarket: {'Disponible' if polymarket_clob else 'Non disponible'}")
 print(f"🔍 Insider Tracker: {'Disponible' if insider_scanner else 'Non disponible'}")
+print(f"⚡ HFT Module: {'Disponible' if hft_scanner else 'Non disponible'}")
 print("=" * 60)
 
 
@@ -236,6 +291,32 @@ def health_check():
         'db': db_manager.check_db(),
         'ws_clients': ws_count,
         'threads': [t.name for t in threading.enumerate()]
+    })
+
+@app.route('/api/notification_stats')
+def api_notification_stats():
+    """Statistiques de l'aggregateur de notifications."""
+    return jsonify({
+        'success': True,
+        'stats': notification_aggregator.get_stats()
+    })
+
+@app.route('/api/notification_config', methods=['POST'])
+def api_notification_config():
+    """Mettre a jour la config de l'aggregateur."""
+    data = request.get_json() or {}
+    emit_interval = data.get('emit_interval_ms')
+    threshold = data.get('high_value_threshold')
+    notification_aggregator.update_config(
+        emit_interval_ms=emit_interval,
+        high_value_threshold=threshold
+    )
+    return jsonify({
+        'success': True,
+        'config': {
+            'emit_interval_ms': notification_aggregator.emit_interval_ms,
+            'high_value_threshold': notification_aggregator.high_value_threshold
+        }
     })
 
 @app.route('/api/toggle_bot', methods=['POST'])

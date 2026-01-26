@@ -24,6 +24,13 @@ function showTab(tabId) {
             initInsiderTracker();
         }
     }
+
+    // Initialiser le module HFT si on affiche cet onglet
+    if (tabId === 'hft') {
+        if (typeof initHFTModule === 'function') {
+            initHFTModule();
+        }
+    }
 }
 
 // ============ BOT CONTROL ============
@@ -696,17 +703,92 @@ socket.on('position_update', (data) => {
     loadPositions(); // Pour l'instant on recharge tout
 });
 
-// Écouter les nouveaux signaux
-// Écouter les nouveaux signaux
+// Écouter les nouveaux signaux (legacy)
 socket.on('new_signal', (data) => {
     console.log('🚨 Nouveau signal:', data);
-
-    // 1. Afficher la bannière
-    showSignalBanner(data);
-
-    // 2. Ajouter au tableau Flux
+    // showSignalBanner(data); // Désactivé - notifications intrusives
     addTradeToFlux(data);
 });
+
+// 📬 Nouveaux events depuis NotificationAggregator
+// Trade individuel (immediat ou haute priorite)
+socket.on('trade_signal', (data) => {
+    console.log('📬 Trade signal:', data);
+    // Convertir au format attendu
+    const formattedData = formatTradeSignal(data);
+    // showSignalBanner(formattedData); // Désactivé - notifications intrusives
+    addTradeToFlux(formattedData);
+});
+
+// Batch de trades (groupes)
+socket.on('trade_batch', (data) => {
+    console.log(`📬 Trade batch: ${data.count} trades`, data);
+
+    if (data.count === 1) {
+        // Un seul trade dans le batch
+        const formattedData = formatTradeSignal(data.trades[0]);
+        // showSignalBanner(formattedData); // Désactivé - notifications intrusives
+        addTradeToFlux(formattedData);
+    } else {
+        // Plusieurs trades - affichage fluide sequentiel
+        // showBatchToast(data.count); // Désactivé - notifications intrusives
+        data.trades.forEach((trade, index) => {
+            setTimeout(() => {
+                const formattedData = formatTradeSignal(trade);
+                // showSignalBanner(formattedData); // Désactivé - notifications intrusives
+                addTradeToFlux(formattedData);
+            }, index * 200); // 200ms entre chaque pour effet fluide
+        });
+    }
+});
+
+// Formatter un trade depuis l'aggregator vers le format interne
+function formatTradeSignal(trade) {
+    return {
+        wallet: trade.wallet || '',
+        wallet_name: trade.trader_name || (trade.wallet ? trade.wallet.slice(0, 10) + '...' : 'Unknown'),
+        type: trade.action || 'TRADE',
+        side: trade.action || 'TRADE',
+        market: trade.market || trade.market_question || '',
+        market_question: trade.market_question || trade.market || '',
+        amount: trade.amount || 0,
+        value_usd: trade.amount || 0,
+        price: trade.price || 0,
+        timestamp: trade.timestamp || new Date().toISOString(),
+        tx_hash: trade.tx_hash || '',
+        source: trade.source || 'unknown',
+        priority: trade.priority || 'normal'
+    };
+}
+
+// Toast pour les batches
+function showBatchToast(count) {
+    const existing = document.getElementById('batch-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'batch-toast';
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-weight: bold;
+        z-index: 10000;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease-out;
+    `;
+    toast.innerHTML = `📬 ${count} nouveaux trades detectes`;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.5s ease-out forwards';
+        setTimeout(() => toast.remove(), 500);
+    }, 3000);
+}
 
 // ============ SIGNAL BANNER ============
 function showSignalBanner(data) {
@@ -851,7 +933,13 @@ function renderFluxTrades(filterSide = 'all') {
     tbody.innerHTML = filtered.map(t => {
         const sideClass = t.side === 'BUY' ? 'buy' : (t.side === 'SELL' ? 'sell' : '');
         const marketName = t.market || 'Marché Inconnu';
-        const marketLink = t.slug ? `<a href="https://polymarket.com/event/${t.slug}" target="_blank" style="color: #00B0FF; text-decoration: none;">${marketName} ↗️</a>` : marketName;
+
+        // Construire l'URL du marché
+        const marketUrl = t.slug
+            ? `https://polymarket.com/event/${t.slug}`
+            : `https://polymarket.com/markets?_q=${encodeURIComponent(marketName)}`;
+
+        const marketLink = `<a href="${marketUrl}" target="_blank" style="color: #00B0FF; text-decoration: none;">${marketName} ↗️</a>`;
 
         return `
         <tr>
@@ -863,7 +951,7 @@ function renderFluxTrades(filterSide = 'all') {
             <td style="color: #aaa;">${t.price}</td>
             <td>${t.status}</td>
             <td>
-                ${t.slug ? `<button class="btn btn-sm" onclick="window.open('https://polymarket.com/event/${t.slug}', '_blank')" style="background: rgba(0, 176, 255, 0.2); color: #00B0FF; border: 1px solid #00B0FF; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;">Voir</button>` : '-'}
+                <button class="btn btn-sm" onclick="window.open('${marketUrl}', '_blank')" style="background: rgba(0, 176, 255, 0.2); color: #00B0FF; border: 1px solid #00B0FF; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;">Voir</button>
             </td>
         </tr>
         `;

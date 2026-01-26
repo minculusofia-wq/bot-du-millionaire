@@ -138,6 +138,7 @@
         <div class="nav-tab active" onclick="showTab('dashboard')">📊 Dashboard</div>
         <div class="nav-tab" onclick="showTab('live')">📋 Flux Trades</div>
         <div class="nav-tab" onclick="showTab('wallets')">👛 Wallets Suivis</div>
+        <div class="nav-tab" onclick="showTab('hft')">⚡ HFT Copy</div>
         <div class="nav-tab" onclick="showTab('history')">📜 Historique</div>
         <div class="nav-tab" onclick="showTab('insider')">🔍 Insider Tracker</div>
         <div class="nav-tab" onclick="showTab('saved')">📁 Saved Wallets</div>
@@ -300,6 +301,121 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- ============ HFT COPY TRADING ============ -->
+        <div id="tab-hft" class="tab-content">
+            <!-- MODAL CONFIG WALLET HFT -->
+            <div id="hft-wallet-config-modal" class="modal-overlay" style="display: none;">
+                <div class="modal">
+                    <button class="modal-close" onclick="closeHFTWalletConfigModal()">&times;</button>
+                    <h3>⚡ Configuration Wallet HFT</h3>
+                    <p style="color: #888; margin-bottom: 20px;" id="hft-modal-wallet-name">Wallet</p>
+                    <input type="hidden" id="hft-modal-wallet-address">
+                    <div class="form-group">
+                        <label>💰 Capital Alloue ($)</label>
+                        <input type="number" id="hft-modal-capital" value="100" min="0" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label>📊 % par Trade</label>
+                        <input type="number" id="hft-modal-percent" value="10" min="0" max="100" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label>🔄 Max Trades/Jour</label>
+                        <input type="number" id="hft-modal-max-trades" value="50" min="1" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label>🛑 Stop Loss (%)</label>
+                        <input type="number" id="hft-modal-sl" value="" placeholder="Ex: -10">
+                    </div>
+                    <div class="form-group">
+                        <label>🎯 Take Profit (%)</label>
+                        <input type="number" id="hft-modal-tp" value="" placeholder="Ex: 20">
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="hft-modal-enabled" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <label for="hft-modal-enabled" style="cursor: pointer;">Actif</label>
+                    </div>
+                    <div style="margin-top: 25px;">
+                        <button class="btn btn-primary" onclick="saveHFTWalletConfig()" style="width: 100%;">Sauvegarder</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ROW 1: Control + Stats -->
+            <div class="two-columns">
+                <div class="card">
+                    <h2>⚡ HFT Scanner Control</h2>
+                    <div class="flex flex-between flex-center" style="margin-bottom: 15px;">
+                        <span>Scanner Status</span>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span class="status-badge status-off" id="hft-scanner-status">INACTIF</span>
+                            <button class="btn btn-primary" id="hft-toggle-btn" onclick="toggleHFTScanner()">Demarrer</button>
+                        </div>
+                    </div>
+                    <p style="color: #888; font-size: 12px;">
+                        Copy-trading des apex HFT sur les marches crypto 15-min.<br>
+                        Latence cible: &lt; 5 secondes.
+                    </p>
+                </div>
+
+                <div class="card">
+                    <h2>📊 Stats Live</h2>
+                    <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                        <div class="stat-mini">
+                            <span style="color: #888; font-size: 11px;">Signaux</span>
+                            <span class="value" id="hft-signals-count" style="font-size: 20px;">0</span>
+                        </div>
+                        <div class="stat-mini">
+                            <span style="color: #888; font-size: 11px;">Executes</span>
+                            <span class="value" id="hft-executed-count" style="font-size: 20px;">0</span>
+                        </div>
+                        <div class="stat-mini">
+                            <span style="color: #888; font-size: 11px;">Taux Exec</span>
+                            <span class="value" id="hft-execution-rate" style="font-size: 20px;">0%</span>
+                        </div>
+                        <div class="stat-mini">
+                            <span style="color: #888; font-size: 11px;">Marches Actifs</span>
+                            <span class="value" id="hft-active-markets-count" style="font-size: 20px;">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ROW 2: Wallets HFT -->
+            <div class="card">
+                <h2>👛 Wallets HFT</h2>
+                <div class="form-group" style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <input type="text" id="hft-new-wallet-address" placeholder="0x... (adresse wallet HFT)" style="flex: 2;">
+                    <input type="text" id="hft-new-wallet-name" placeholder="Nom (ex: 0x8dxd)" style="flex: 1;">
+                    <button class="btn btn-primary" onclick="addHFTWallet()">+ Ajouter</button>
+                </div>
+                <div id="hft-wallets-list" class="wallet-list">
+                    <p style="color: #888; text-align: center; padding: 20px;">Aucun wallet HFT</p>
+                </div>
+            </div>
+
+            <!-- ROW 3: Live Signals -->
+            <div class="card">
+                <h2>📡 Signaux Temps Reel</h2>
+                <div id="hft-signals-feed" style="max-height: 300px; overflow-y: auto;">
+                    <p style="color: #888; text-align: center; padding: 20px;">En attente de signaux...</p>
+                </div>
+            </div>
+
+            <!-- ROW 4: Active Markets -->
+            <div class="card">
+                <div class="flex flex-between flex-center" style="margin-bottom: 15px;">
+                    <h2>🕒 Marches 15-min Crypto Actifs</h2>
+                    <button class="btn btn-secondary btn-sm" id="hft-refresh-markets-btn" onclick="refreshHFTMarkets()">Rafraichir</button>
+                </div>
+                <div id="hft-markets-list" style="max-height: 250px; overflow-y: auto;">
+                    <p style="color: #888; text-align: center; padding: 20px;">Aucun marche 15-min actif</p>
+                </div>
             </div>
         </div>
 
@@ -595,6 +711,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}?v=2.8"></script>
     <script src="{{ url_for('static', filename='js/insider.js') }}?v=2.8"></script>
+    <script src="{{ url_for('static', filename='js/hft.js') }}?v=1.0"></script>
 </body>
 
 </html>

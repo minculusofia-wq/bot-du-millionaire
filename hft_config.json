@@ -1,0 +1,28 @@
+{
+    "enabled": false,
+    "auto_start": false,
+    "market_refresh_interval": 60,
+    "max_slippage_bps": 50,
+    "execution_timeout_sec": 2,
+    "poll_interval": 5,
+    "tracked_wallets": [
+        {
+            "address": "0x589222a5124a96765443b97a3498d89ffd824ad2",
+            "nickname": "PurpleThunder",
+            "capital_allocated": 100.0,
+            "percent_per_trade": 10.0,
+            "max_daily_trades": 50,
+            "enabled": true,
+            "added_at": "2026-01-26T10:42:05.980637"
+        },
+        {
+            "address": "0x63ce342161250d705dc0b16df89036c8e5f9ba9a",
+            "nickname": "0x8dxd",
+            "capital_allocated": 100.0,
+            "percent_per_trade": 10.0,
+            "max_daily_trades": 50,
+            "enabled": true,
+            "added_at": "2026-01-26T10:42:38.701673"
+        }
+    ]
+}

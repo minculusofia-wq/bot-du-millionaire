@@ -164,6 +164,8 @@ class DBManager:
         c.execute('CREATE INDEX IF NOT EXISTS idx_source_wallet ON bot_positions(source_wallet)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_status ON bot_positions(status)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_token_source ON bot_positions(token_id, source_wallet)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_opened_at ON bot_positions(opened_at)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_status_opened ON bot_positions(status, opened_at)')
 
         # ============ INSIDER TRACKER TABLES ============
 
@@ -241,6 +243,9 @@ class DBManager:
                 c.execute(f'ALTER TABLE saved_insider_wallets ADD COLUMN {col} {col_type}')
             except:
                 pass  # Colonne existe déjà
+
+        # ============ HFT MODULE TABLES ============
+        self._init_hft_tables(c)
 
         self.conn.commit()
         
@@ -781,5 +786,225 @@ class DBManager:
             commit=True
         )
         print(f"🧹 Alertes insider > {days} jours supprimées")
+
+    def check_db(self) -> Dict:
+        """Vérifie l'état de la base de données pour le health check
+
+        Returns:
+            Dict avec status et statistiques
+        """
+        try:
+            with self.lock:
+                cursor = self.conn.cursor()
+                # Test de connexion simple
+                cursor.execute("SELECT 1")
+
+                # Compter les tables importantes
+                cursor.execute("SELECT COUNT(*) FROM bot_positions WHERE status = 'OPEN'")
+                open_positions = cursor.fetchone()[0]
+
+                cursor.execute("SELECT COUNT(*) FROM insider_alerts")
+                total_alerts = cursor.fetchone()[0]
+
+                return {
+                    'status': 'healthy',
+                    'open_positions': open_positions,
+                    'insider_alerts': total_alerts,
+                    'connection': 'ok'
+                }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': str(e),
+                'connection': 'failed'
+            }
+
+    # ============ HFT MODULE TABLES INIT ============
+
+    def _init_hft_tables(self, c):
+        """Initialise les tables pour le module HFT"""
+
+        # Table: hft_trades - Historique des trades HFT
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS hft_trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                signal_timestamp TEXT NOT NULL,
+                execution_timestamp TEXT,
+                source_wallet TEXT NOT NULL,
+                trader_name TEXT,
+                market_question TEXT,
+                token_id TEXT NOT NULL,
+                condition_id TEXT,
+                side TEXT NOT NULL,
+                signal_price REAL,
+                execution_price REAL,
+                size_usd REAL,
+                shares REAL,
+                latency_ms INTEGER,
+                status TEXT DEFAULT 'PENDING',
+                order_id TEXT,
+                error_message TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        c.execute('CREATE INDEX IF NOT EXISTS idx_hft_trades_wallet ON hft_trades(source_wallet)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_hft_trades_status ON hft_trades(status)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_hft_trades_ts ON hft_trades(signal_timestamp DESC)')
+
+        # Table: hft_tracked_wallets - Wallets HFT suivis (séparés des wallets classiques)
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS hft_tracked_wallets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                address TEXT UNIQUE NOT NULL,
+                nickname TEXT,
+                capital_allocated REAL DEFAULT 100,
+                percent_per_trade REAL DEFAULT 10,
+                max_daily_trades INTEGER DEFAULT 50,
+                sl_percent REAL,
+                tp_percent REAL,
+                enabled INTEGER DEFAULT 1,
+                stats_win_rate REAL DEFAULT 0,
+                stats_pnl REAL DEFAULT 0,
+                stats_trades_today INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        c.execute('CREATE INDEX IF NOT EXISTS idx_hft_wallets_addr ON hft_tracked_wallets(address)')
+
+    # ============ HFT MODULE METHODS ============
+
+    def save_hft_trade(self, trade_data: Dict):
+        """Sauvegarde un trade HFT"""
+        self._execute('''
+            INSERT INTO hft_trades
+            (signal_timestamp, execution_timestamp, source_wallet, trader_name, market_question,
+             token_id, condition_id, side, signal_price, execution_price, size_usd, shares,
+             latency_ms, status, order_id, error_message)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            trade_data.get('signal_timestamp', datetime.now().isoformat()),
+            trade_data.get('execution_timestamp'),
+            trade_data.get('source_wallet', ''),
+            trade_data.get('trader_name', ''),
+            trade_data.get('market_question', ''),
+            trade_data.get('token_id', ''),
+            trade_data.get('condition_id', ''),
+            trade_data.get('side', ''),
+            float(trade_data.get('signal_price', 0) or 0),
+            float(trade_data.get('execution_price', 0) or 0),
+            float(trade_data.get('size_usd', 0) or 0),
+            float(trade_data.get('shares', 0) or 0),
+            int(trade_data.get('latency_ms', 0) or 0),
+            trade_data.get('status', 'PENDING'),
+            trade_data.get('order_id', ''),
+            trade_data.get('error_message', '')
+        ), commit=True)
+
+    def get_hft_trades(self, limit: int = 100) -> List[Dict]:
+        """Récupère l'historique des trades HFT"""
+        self.conn.row_factory = sqlite3.Row
+        c = self.conn.cursor()
+        c.execute('''
+            SELECT * FROM hft_trades
+            ORDER BY signal_timestamp DESC
+            LIMIT ?
+        ''', (limit,))
+
+        rows = c.fetchall()
+        return [dict(row) for row in rows]
+
+    def get_hft_trades_by_wallet(self, wallet_address: str, limit: int = 50) -> List[Dict]:
+        """Récupère les trades HFT pour un wallet spécifique"""
+        self.conn.row_factory = sqlite3.Row
+        c = self.conn.cursor()
+        c.execute('''
+            SELECT * FROM hft_trades
+            WHERE source_wallet = ?
+            ORDER BY signal_timestamp DESC
+            LIMIT ?
+        ''', (wallet_address.lower(), limit))
+
+        rows = c.fetchall()
+        return [dict(row) for row in rows]
+
+    def get_hft_stats(self) -> Dict:
+        """Retourne les statistiques globales HFT"""
+        self.conn.row_factory = sqlite3.Row
+        c = self.conn.cursor()
+
+        c.execute('''
+            SELECT
+                COUNT(*) as total_trades,
+                SUM(CASE WHEN status = 'executed' THEN 1 ELSE 0 END) as executed,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+                SUM(size_usd) as total_volume,
+                AVG(latency_ms) as avg_latency
+            FROM hft_trades
+        ''')
+
+        row = c.fetchone()
+
+        return {
+            'total_trades': row['total_trades'] or 0,
+            'executed': row['executed'] or 0,
+            'failed': row['failed'] or 0,
+            'total_volume': round(row['total_volume'] or 0, 2),
+            'avg_latency_ms': round(row['avg_latency'] or 0, 1)
+        }
+
+    def save_hft_wallet(self, wallet_data: Dict):
+        """Sauvegarde ou met à jour un wallet HFT"""
+        self._execute('''
+            INSERT INTO hft_tracked_wallets
+            (address, nickname, capital_allocated, percent_per_trade, max_daily_trades,
+             sl_percent, tp_percent, enabled)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(address) DO UPDATE SET
+                nickname = excluded.nickname,
+                capital_allocated = excluded.capital_allocated,
+                percent_per_trade = excluded.percent_per_trade,
+                max_daily_trades = excluded.max_daily_trades,
+                sl_percent = excluded.sl_percent,
+                tp_percent = excluded.tp_percent,
+                enabled = excluded.enabled,
+                updated_at = CURRENT_TIMESTAMP
+        ''', (
+            wallet_data.get('address', '').lower(),
+            wallet_data.get('nickname', ''),
+            float(wallet_data.get('capital_allocated', 100)),
+            float(wallet_data.get('percent_per_trade', 10)),
+            int(wallet_data.get('max_daily_trades', 50)),
+            wallet_data.get('sl_percent'),
+            wallet_data.get('tp_percent'),
+            1 if wallet_data.get('enabled', True) else 0
+        ), commit=True)
+
+    def get_hft_wallets(self) -> List[Dict]:
+        """Récupère tous les wallets HFT"""
+        self.conn.row_factory = sqlite3.Row
+        c = self.conn.cursor()
+        c.execute('SELECT * FROM hft_tracked_wallets ORDER BY created_at DESC')
+        rows = c.fetchall()
+        return [dict(row) for row in rows]
+
+    def delete_hft_wallet(self, address: str):
+        """Supprime un wallet HFT"""
+        self._execute(
+            'DELETE FROM hft_tracked_wallets WHERE address = ?',
+            (address.lower(),),
+            commit=True
+        )
+
+    def update_hft_wallet_stats(self, address: str, win_rate: float, pnl: float, trades_today: int):
+        """Met à jour les stats d'un wallet HFT"""
+        self._execute('''
+            UPDATE hft_tracked_wallets
+            SET stats_win_rate = ?, stats_pnl = ?, stats_trades_today = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE address = ?
+        ''', (win_rate, pnl, trades_today, address.lower()), commit=True)
+
 
 db_manager = DBManager()

@@ -18,5 +18,8 @@ fi
 
 # 3. Lancer le bot
 echo "🟢 Lancement du bot !"
-echo "👉 Accédez à http://localhost:5000"
+
+# 4. Ouvrir le navigateur automatiquement après 3 secondes (en background)
+(sleep 3 && open "http://localhost:5000") &
+
 ./venv/bin/python bot.py

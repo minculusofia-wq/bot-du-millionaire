@@ -23,7 +23,18 @@
 2. **Live Trading** - Flux des trades en temps réel
 3. **Wallets Suivis** - Gestion des "Whales" à copier (avec configs individuelles)
 4. **Historique** - Historique complet des trades et PnL
-5. **Paramètres** - Configuration API et gestion des risques
+5. **⚡ HFT Copy** - Copy-trading des apex HFT traders (15-min crypto markets)
+6. **Insider Scanner** - Détection de comportements suspects
+7. **Paramètres** - Configuration API et gestion des risques
+
+### ✨ Nouveautés v3.0 (Module HFT)
+- **⚡ HFT Copy-Trading** : Nouveau module dédié au copy-trading des apex HFT traders (0x8dxd, PurpleThunderBicycleMountain).
+- **🎯 Marchés 15-min Crypto** : Détection automatique des marchés BTC/ETH à 15 minutes via Gamma API.
+- **🚀 Latence Optimisée** : Polling Goldsky toutes les 5 secondes pour une détection rapide des trades.
+- **💰 Configuration Indépendante** : Wallets HFT séparés avec capital et % par trade configurables.
+- **📊 Stats Live** : Signaux détectés, trades exécutés, taux d'exécution en temps réel.
+- **🔧 Exécution Rapide** : 0.5% max slippage, 2s timeout, sans validation lourde.
+- **🖥️ Auto-ouverture navigateur** : Le frontend s'ouvre automatiquement au lancement du bot.
 
 ### ✨ Nouveautés v2.9 (Audit & Optimisation)
 - **🚀 Migration Polygonscan V2** : Passage à l'API Etherscan V2 pour une détection infaillible des wallets (V1 dépréciée).
@@ -57,12 +68,36 @@ Pour utiliser ce bot, vous devez avoir des fonds sur **Polygon (MATIC)** :
 - **🔄 Réconciliation au démarrage** : Vérification et nettoyage automatique des positions orphelines.
 - **📝 Logging structuré** : Logs colorés, rotation automatique, fichiers séparés (bot.log, errors.log, trades.log).
 
-### 🕵️ Insider Trading Scanner (Nouveau v2.4)
+### 🕵️ Insider Trading Scanner
 Un système avancé de détection de comportements suspects sur Polymarket :
 - **Détection d'Anomalies** : Identifie les mises improbables (gros montants sur faibles probabilités), les profils suspects (nouveaux wallets) et les "whale movements".
 - **Intégration Goldsky & Polygonscan** : Analyse profonde de l'historique des wallets et de l'activité du marché via subgraphs et API blockchain.
 - **Alertes Temps Réel** : Notification immédiate lors de la détection de patterns de trading non-naturels.
 - **Scoring Intelligent** : Algorithme de notation (0-100) pour évaluer la "suspicion" d'une transaction.
+
+---
+
+## ⚡ Module HFT Copy-Trading
+
+Le module HFT permet de copier les apex HFT traders sur les marchés crypto 15-min de Polymarket.
+
+### Architecture
+```
++------------------+     +------------------+     +------------------+
+|  Market Filter   | --> |  Trade Monitor   | --> |  Fast Executor   |
+| (Gamma API 60s)  |     | (Goldsky 5s)     |     | (CLOB <2s)       |
++------------------+     +------------------+     +------------------+
+```
+
+### Utilisation
+1. Allez sur l'onglet **⚡ HFT Copy**
+2. Ajoutez les wallets HFT à suivre (ex: 0x8dxd, PurpleThunder)
+3. Configurez le capital et le % par trade pour chaque wallet
+4. Activez le scanner avec le bouton **Démarrer**
+
+### Wallets HFT Recommandés
+- **0x8dxd** : `0x63ce342161250d705dc0b16df89036c8e5f9ba9a`
+- **PurpleThunderBicycleMountain** : `0x589222a5124a96765443b97a3498d89ffd824ad2`
 
 ---
 
@@ -75,8 +110,8 @@ Un système avancé de détection de comportements suspects sur Polymarket :
 
 ### Installation
 ```bash
-git clone https://github.com/votre-repo/bot-du-millionaire.git
-cd bot-du-millionaire
+git clone https://github.com/minculusofia-wq/bot-du-millionaire-copy-trade-polymarket.git
+cd bot-du-millionaire-copy-trade-polymarket
 pip install -r requirements.txt
 ```
 
@@ -91,16 +126,19 @@ pip install -r requirements.txt
    POLYMARKET_API_KEY=votre_clé
    POLYMARKET_SECRET=votre_secret
    POLYMARKET_PASSPHRASE=votre_passphrase
-   
+
    # Clé privée Polygon (Requis pour signer les tx)
    POLYGON_PRIVATE_KEY=votre_clé_privée
+
+   # Polygonscan API (Recommandé pour le tracking)
+   POLYGONSCAN_API_KEY=votre_clé_polygonscan
    ```
 
 ### Lancement
 ```bash
-python bot.py
+./start_bot.sh
 ```
-Accédez à l'interface sur : **http://localhost:5000**
+Le navigateur s'ouvre automatiquement sur : **http://localhost:5000**
 
 ---
 
